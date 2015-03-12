@@ -234,12 +234,30 @@ impl<N,E> Graph<N,E> {
         self.each_adjacent_edge(source, Outgoing, f)
     }
 
+    pub fn successor_nodes<'a>(&'a self, source: NodeIndex) -> Vec<NodeIndex> {
+        let mut result = Vec::new();
+        self.each_outgoing_edge(source, |_, edge| {
+            result.push(edge.target);
+            true
+        });
+        result
+    }
+
     pub fn each_incoming_edge<'a, F>(&'a self, target: NodeIndex, f: F) -> bool where
         F: FnMut(EdgeIndex, &'a Edge<E>) -> bool,
     {
         //! Iterates over all incoming edges to the node `target`
 
         self.each_adjacent_edge(target, Incoming, f)
+    }
+
+    pub fn predecessor_nodes<'a>(&'a self, target: NodeIndex) -> Vec<NodeIndex> {
+        let mut result = Vec::new();
+        self.each_incoming_edge(target, |_, edge| {
+            result.push(edge.source);
+            true
+        });
+        result
     }
 
     pub fn each_adjacent_edge<'a, F>(&'a self,
@@ -348,7 +366,7 @@ impl<E> Edge<E> {
 
 #[cfg(test)]
 mod test {
-    use middle::graph::*;
+    use super::*;
     use std::fmt::Debug;
 
     type TestNode = Node<&'static str>;

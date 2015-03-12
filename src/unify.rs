@@ -131,12 +131,12 @@ impl<K:UnifyKey> UnificationTable<K> {
     ///
     /// NB. This is a building-block operation and you would probably
     /// prefer to call `probe` below.
-    fn get(&mut self, vid: K) -> Node<K> {
+    fn get(&mut self, vid: &K) -> Node<K> {
         let index = vid.index() as usize;
         let value = (*self.values.get(index)).clone();
         match value {
             Redirect(redirect) => {
-                let node: Node<K> = self.get(redirect.clone());
+                let node: Node<K> = self.get(&redirect);
                 if node.key != redirect {
                     // Path compression
                     self.values.set(index, Redirect(node.key.clone()));
@@ -144,7 +144,7 @@ impl<K:UnifyKey> UnificationTable<K> {
                 node
             }
             Root(value, rank) => {
-                Node { key: vid, value: value, rank: rank }
+                Node { key: vid.clone(), value: value, rank: rank }
             }
         }
     }
@@ -215,6 +215,31 @@ impl<K:UnifyKey> sv::SnapshotVecDelegate for Delegate<K> {
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// Base union-find algorithm, where we are just making setes
+
+impl<'tcx,K> UnificationTable<K>
+    where K : UnifyKey<Value=()>,
+{
+    pub fn union(&mut self, a_id: &K, b_id: &K) {
+        let node_a = self.get(a_id);
+        let node_b = self.get(b_id);
+        let a_id = node_a.key.clone();
+        let b_id = node_b.key.clone();
+        if a_id != b_id {
+            self.unify(&node_a, &node_b, ());
+        }
+    }
+
+    pub fn find(&mut self, id: &K) -> K {
+        self.get(id).key.clone()
+    }
+
+    pub fn unioned(&mut self, a_id: &K, b_id: &K) -> bool {
+        self.find(a_id) == self.find(b_id)
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////
 // Code to handle keys which carry a value, like ints,
 // floats---anything that doesn't have a subtyping relationship we
 // need to worry about.
@@ -225,8 +250,8 @@ impl<'tcx,K,V> UnificationTable<K>
           Option<V>: UnifyValue,
 {
     pub fn unify_var_var(&mut self,
-                         a_id: K,
-                         b_id: K)
+                         a_id: &K,
+                         b_id: &K)
                          -> Result<(),(V,V)>
     {
         let node_a = self.get(a_id);
@@ -259,7 +284,7 @@ impl<'tcx,K,V> UnificationTable<K>
     /// Sets the value of the key `a_id` to `b`. Because simple keys do not have any subtyping
     /// relationships, if `a_id` already has a value, it must be the same as `b`.
     pub fn unify_var_value(&mut self,
-                           a_id: K,
+                           a_id: &K,
                            b: V)
                            -> Result<(),(V,V)>
     {
@@ -282,11 +307,13 @@ impl<'tcx,K,V> UnificationTable<K>
         }
     }
 
-    pub fn has_value(&mut self, id: K) -> bool {
+    pub fn has_value(&mut self, id: &K) -> bool {
         self.get(id).value.is_some()
     }
 
-    pub fn probe(&mut self, a_id: K) -> Option<V> {
+    pub fn probe(&mut self, a_id: &K) -> Option<V> {
         self.get(a_id).value.clone()
     }
 }
+
+impl UnifyValue for () { }
