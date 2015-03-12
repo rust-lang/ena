@@ -15,8 +15,8 @@ fn basic() {
     let mut ut: UnificationTable<UnitKey> = UnificationTable::new();
     let k1 = ut.new_key(());
     let k2 = ut.new_key(());
-    assert_eq!(ut.unioned(&k1, &k2), false);
-    ut.union(&k1, &k2);
-    assert_eq!(ut.unioned(&k1, &k2), true);
+    assert_eq!(ut.unioned(k1, k2), false);
+    ut.union(k1, k2);
+    assert_eq!(ut.unioned(k1, k2), true);
 }
 

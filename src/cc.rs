@@ -166,10 +166,10 @@ impl<'a, K:Key> Algorithm<'a,K> {
     }
 
     fn unioned(&mut self, u: Token, v: Token) -> bool {
-        self.table.unioned(&u, &v)
+        self.table.unioned(u, v)
     }
 
     fn union(&mut self, u: Token, v: Token) {
-        self.table.union(&u, &v)
+        self.table.union(u, v)
     }
 }

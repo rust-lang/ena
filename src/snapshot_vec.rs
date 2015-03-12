@@ -77,6 +77,10 @@ impl<D:SnapshotVecDelegate> SnapshotVec<D> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
     pub fn push(&mut self, elem: D::Value) -> usize {
         let len = self.values.len();
         self.values.push(elem);
