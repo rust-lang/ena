@@ -168,6 +168,11 @@ impl<K:UnifyKey> UnificationTable<K> {
         key
     }
 
+    pub fn unioned_keys(&mut self, key: K) -> UnionedKeys<K> {
+        let root_key = self.get(key).key();
+        UnionedKeys { table: self, stack: vec![root_key] }
+    }
+
     /// Find the root node for `vid`. This uses the standard
     /// union-find algorithm with path compression:
     /// <http://en.wikipedia.org/wiki/Disjoint-set_data_structure>.
@@ -255,6 +260,67 @@ impl<K:UnifyKey> sv::SnapshotVecDelegate for Delegate<K> {
 
     fn reverse(&mut self, _: &mut Vec<VarValue<K>>, _: ()) {
         panic!("Nothing to reverse");
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Iterator over keys that have been unioned together
+
+pub struct UnionedKeys<'a,K>
+    where K: UnifyKey + 'a, K::Value : 'a
+{
+    table: &'a mut UnificationTable<K>,
+    stack: Vec<K>,
+}
+
+impl<'a,K> UnionedKeys<'a,K>
+    where K: UnifyKey, K::Value: 'a
+{
+    fn var_value(&self, key: K) -> VarValue<K> {
+        self.table.values.get(key.index() as usize).clone()
+    }
+}
+
+impl<'a,K:'a> Iterator for UnionedKeys<'a,K>
+    where K: UnifyKey, K::Value: 'a
+{
+    type Item = K;
+
+    fn next(&mut self) -> Option<K> {
+        let key = match self.stack.last() {
+            Some(k) => *k,
+            None => { return None; }
+        };
+
+        let vv = self.var_value(key);
+
+        match vv.child(key) {
+            Some(child_key) => {
+                self.stack.push(child_key);
+            }
+
+            None => {
+                // No child, push a sibling for the current node.  If
+                // current node has no siblings, start popping
+                // ancestors until we find an aunt or uncle or
+                // something to push. Note that we have the invariant
+                // that for every node N that we reach by popping
+                // items off of the stack, we have already visited all
+                // children of N.
+                while let Some(ancestor_key) = self.stack.pop() {
+                    let ancestor_vv = self.var_value(ancestor_key);
+                    match ancestor_vv.sibling(ancestor_key) {
+                        Some(sibling) => {
+                            self.stack.push(sibling);
+                            break;
+                        }
+                        None => { }
+                    }
+                }
+            }
+        }
+
+        Some(key)
     }
 }
 
