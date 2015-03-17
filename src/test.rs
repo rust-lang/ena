@@ -1,3 +1,5 @@
+extern crate test;
+use self::test::Bencher;
 use unify::{UnifyKey, UnifyValue, UnificationTable};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -24,7 +26,7 @@ fn basic() {
 fn big_array() {
     let mut ut: UnificationTable<UnitKey> = UnificationTable::new();
     let mut keys = Vec::new();
-    const max: usize = 1 << 20;
+    const max: usize = 1 << 15;
 
     for _ in 0..max {
         keys.push(ut.new_key(()));
@@ -39,6 +41,29 @@ fn big_array() {
     for i in 0..max {
         assert!(ut.unioned(keys[0], keys[i]));
     }
+}
+
+#[bench]
+fn big_array_bench(b: &mut Bencher) {
+    let mut ut: UnificationTable<UnitKey> = UnificationTable::new();
+    let mut keys = Vec::new();
+    const max: usize = 1 << 15;
+
+    for _ in 0..max {
+        keys.push(ut.new_key(()));
+    }
+
+    b.iter(|| {
+        for i in 1..max {
+            let l = keys[i-1];
+            let r = keys[i];
+            ut.union(l, r);
+        }
+
+        for i in 0..max {
+            assert!(ut.unioned(keys[0], keys[i]));
+        }
+    })
 }
 
 #[test]
