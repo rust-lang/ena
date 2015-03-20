@@ -89,7 +89,7 @@ impl EdgeIndex {
     pub fn edge_id(&self) -> usize { self.get() }
 }
 
-impl<N,E> Graph<N,E> {
+impl<N:Debug,E:Debug> Graph<N,E> {
     pub fn new() -> Graph<N,E> {
         Graph {
             nodes: Vec::new(),
@@ -157,6 +157,8 @@ impl<N,E> Graph<N,E> {
                     source: NodeIndex,
                     target: NodeIndex,
                     data: E) -> EdgeIndex {
+        debug!("graph: add_edge({:?}, {:?}, {:?})", source, target, data);
+
         let idx = self.next_edge_index();
 
         // read current first of the list of edges from each node
@@ -319,7 +321,7 @@ pub struct DepthFirstTraversal<'g, N:'g, E:'g> {
     visited: BitVector
 }
 
-impl<'g, N, E> Iterator for DepthFirstTraversal<'g, N, E> {
+impl<'g, N:Debug, E:Debug> Iterator for DepthFirstTraversal<'g, N, E> {
     type Item = &'g N;
 
     fn next(&mut self) -> Option<&'g N> {
