@@ -1,7 +1,7 @@
 use cc::{CongruenceClosure, Key};
 use self::TypeStruct::*;
 
-#[derive(Copy,Clone,PartialEq,Eq,Hash)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq,Hash)]
 enum TypeStruct<'tcx> {
     Box(Type<'tcx>),
     Ref(Type<'tcx>),
@@ -47,23 +47,57 @@ const BOX_VAR_2: Type<'static> = &Box(VAR_2);
 #[test]
 fn simple_as_it_gets() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    assert!(cc.unioned(INT, INT));
-    assert!(cc.unioned(VAR_0, VAR_0));
-    assert!(cc.unioned(BOX_VAR_1, BOX_VAR_1));
+    assert!(cc.merged(INT, INT));
+    assert!(cc.merged(VAR_0, VAR_0));
+    assert!(cc.merged(BOX_VAR_1, BOX_VAR_1));
 }
 
 #[test]
 fn union_vars() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    cc.union(VAR_0, VAR_1);
-    assert!(cc.unioned(VAR_0, VAR_1));
+    cc.merge(VAR_0, VAR_1);
+    assert!(cc.merged(VAR_0, VAR_1));
 }
 
 #[test]
 fn union_box_then_test_var() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    cc.union(VAR_0, VAR_1);
-    assert!(cc.unioned(VAR_0, VAR_1));
+    cc.merge(VAR_0, VAR_1);
+    assert!(cc.merged(VAR_0, VAR_1));
 }
 
+#[test]
+fn union_direct() {
+    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+
+    cc.add(BOX_VAR_0);
+    cc.add(BOX_VAR_1);
+    cc.add(VAR_0);
+    cc.add(VAR_1);
+
+    cc.merge(VAR_0, VAR_1);
+    assert!(cc.merged(BOX_VAR_0, BOX_VAR_1));
+}
+
+macro_rules! indirect_test {
+    ($a:expr, $b:expr; $c:expr, $d:expr) => {
+        #[test]
+        fn union_indirect_1() {
+            let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+
+            cc.add(BOX_VAR_0);
+            cc.add(BOX_VAR_1);
+            cc.add(BOX_VAR_2);
+            cc.add(VAR_0);
+            cc.add(VAR_1);
+            cc.add(VAR_2);
+
+            cc.merge($a, $b);
+            cc.merge($c, $d);
+            assert!(cc.merged(BOX_VAR_0, BOX_VAR_2));
+        }
+    }
+}
+
+indirect_test! { VAR_2, VAR_1; VAR_1, VAR_0 }
 

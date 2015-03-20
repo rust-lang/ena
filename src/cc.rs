@@ -1,6 +1,7 @@
 use graph::{Graph, NodeIndex};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::fmt::Debug;
 use std::hash::Hash;
 use unify::{UnifyKey, UnificationTable};
 
@@ -10,7 +11,7 @@ pub struct CongruenceClosure<K:Hash+Eq> {
     graph: Graph<K,()>,
 }
 
-pub trait Key : Hash + Eq + Clone {
+pub trait Key : Hash + Eq + Clone + Debug {
     fn shallow_eq(&self, key: &Self) -> bool;
     fn successors(&self) -> Vec<Self>;
 }
@@ -55,7 +56,11 @@ impl<K:Key> CongruenceClosure<K> {
     }
 
     pub fn add(&mut self, key: K) -> Token {
+        debug!("add(): key={:?}", key);
+
         let (is_new, token) = self.new_token(&key);
+        debug!("add: key={:?} is_new={:?} token={:?}", key, is_new, token);
+
         if !is_new {
             return token;
         }
@@ -66,9 +71,14 @@ impl<K:Key> CongruenceClosure<K> {
                .map(|s| self.add(s))
                .collect();
 
+        debug!("add: key={:?} successors={:?}", key, successors);
+
         for successor in successors {
             // get set of predecessors for each successor BEFORE we add the new node
             let predecessors = self.graph.predecessor_nodes(token.node());
+
+            debug!("add: key={:?} successor={:?} predecessors={:?}",
+                     key, successor, predecessors);
 
             // add edge from new node to its successors
             self.graph.add_edge(token.node(), successor.node(), ());
@@ -81,13 +91,13 @@ impl<K:Key> CongruenceClosure<K> {
         token
     }
 
-    pub fn union(&mut self, key1: K, key2: K) {
+    pub fn merge(&mut self, key1: K, key2: K) {
         let token1 = self.add(key1);
         let token2 = self.add(key2);
-        self.algorithm().union(token1, token2);
+        self.algorithm().merge(token1, token2);
     }
 
-    pub fn unioned(&mut self, key1: K, key2: K) -> bool {
+    pub fn merged(&mut self, key1: K, key2: K) -> bool {
         // Sadly, even if `key1` and `key2` are not yet in the map,
         // they might be unioned, because some of their successors
         // might be in the map.
@@ -127,6 +137,9 @@ struct Algorithm<'a,K:'a> {
 
 impl<'a, K:Key> Algorithm<'a,K> {
     fn merge(&mut self, u: Token, v: Token) {
+        debug!("merge(): u={:?} v={:?}",
+                 u, v);
+
         if self.unioned(u, v) {
             return;
         }
@@ -143,6 +156,9 @@ impl<'a, K:Key> Algorithm<'a,K> {
     }
 
     fn maybe_merge(&mut self, p_u: Token, p_v: Token) {
+        debug!("maybe_merge(): p_u={:?} p_v={:?}",
+                 p_u, p_v);
+
         if !self.unioned(p_u, p_v) && self.shallow_eq(p_u, p_v) && self.congruent(p_u, p_v) {
             self.merge(p_u, p_v);
         }
