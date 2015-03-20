@@ -1,7 +1,8 @@
 #![feature(std_misc)]
+#![crate_name="rusty-cc"]
 
 #[macro_use]
-extern crate log;
+mod debug;
 
 mod graph;
 mod snapshot_vec;
