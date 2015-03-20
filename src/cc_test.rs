@@ -80,13 +80,12 @@ fn union_direct() {
 }
 
 macro_rules! indirect_test {
-    ($a:expr, $b:expr; $c:expr, $d:expr) => {
+    ($test_name:ident: $a:expr, $b:expr; $c:expr, $d:expr) => {
         #[test]
-        fn union_indirect_1() {
+        fn $test_name() {
             let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
 
             cc.add(BOX_VAR_0);
-            cc.add(BOX_VAR_1);
             cc.add(BOX_VAR_2);
             cc.add(VAR_0);
             cc.add(VAR_1);
@@ -99,5 +98,12 @@ macro_rules! indirect_test {
     }
 }
 
-indirect_test! { VAR_2, VAR_1; VAR_1, VAR_0 }
+// The indirect tests test for the case where we merge V0 and V1, and
+// we merged V1 and V2, and we want to use this to conclude that
+// Box<V0> and Box<V2> are merged -- but there is no node created for
+// Box<V1>.
+indirect_test! { indirect_test_1: VAR_1, VAR_2; VAR_1, VAR_0 }
+indirect_test! { indirect_test_2: VAR_2, VAR_1; VAR_1, VAR_0 }
+indirect_test! { indirect_test_3: VAR_1, VAR_2; VAR_0, VAR_1 }
+indirect_test! { indirect_test_4: VAR_2, VAR_1; VAR_0, VAR_1 }
 

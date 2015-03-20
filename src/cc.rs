@@ -144,15 +144,24 @@ impl<'a, K:Key> Algorithm<'a,K> {
             return;
         }
 
+        let u_preds = self.all_preds(u);
+        let v_preds = self.all_preds(v);
+
         self.union(u, v);
 
-        self.graph.each_incoming_edge(u.node(), |_, p_u| {
-            self.graph.each_incoming_edge(v.node(), |_, p_v| {
-                self.maybe_merge(Token::from_node(p_u.source()),
-                                 Token::from_node(p_v.source()));
-                true
-            })
-        });
+        for &p_u in &u_preds {
+            for &p_v in &v_preds {
+                self.maybe_merge(p_u, p_v);
+            }
+        }
+    }
+
+    fn all_preds(&mut self, u: Token) -> Vec<Token> {
+        let graph = self.graph;
+        self.table.unioned_keys(u)
+                  .flat_map(|k| graph.predecessor_nodes(k.node()).into_iter())
+                  .map(|i| Token::from_node(i))
+                  .collect()
     }
 
     fn maybe_merge(&mut self, p_u: Token, p_v: Token) {
