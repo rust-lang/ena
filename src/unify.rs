@@ -133,7 +133,7 @@ impl<K:UnifyKey> VarValue<K> {
 impl<K:UnifyKey> UnificationTable<K> {
     pub fn new() -> UnificationTable<K> {
         UnificationTable {
-            values: sv::SnapshotVec::new(Delegate(PhantomData)),
+            values: sv::SnapshotVec::new()
         }
     }
 
@@ -258,9 +258,7 @@ impl<K:UnifyKey> sv::SnapshotVecDelegate for Delegate<K> {
     type Value = VarValue<K>;
     type Undo = ();
 
-    fn reverse(&mut self, _: &mut Vec<VarValue<K>>, _: ()) {
-        panic!("Nothing to reverse");
-    }
+    fn reverse(_: &mut Vec<VarValue<K>>, _: ()) {}
 }
 
 ///////////////////////////////////////////////////////////////////////////

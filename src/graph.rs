@@ -33,10 +33,11 @@
 use bitvec::BitVector;
 use std::fmt::{Formatter, Error, Debug};
 use std::usize;
+use snapshot_vec::{SnapshotVec, SnapshotVecDelegate};
 
 pub struct Graph<N,E> {
-    nodes: Vec<Node<N>> ,
-    edges: Vec<Edge<E>> ,
+    nodes: SnapshotVec<Node<N>> ,
+    edges: SnapshotVec<Edge<E>> ,
 }
 
 pub struct Node<N> {
@@ -49,6 +50,20 @@ pub struct Edge<E> {
     source: NodeIndex,
     target: NodeIndex,
     pub data: E,
+}
+
+impl<N> SnapshotVecDelegate for Node<N> {
+    type Value = Node<N>;
+    type Undo = ();
+
+    fn reverse(values: &mut Vec<Node<N>>, action: ()) {}
+}
+
+impl<N> SnapshotVecDelegate for Edge<N> {
+    type Value = Edge<N>;
+    type Undo = ();
+
+    fn reverse(values: &mut Vec<Edge<N>>, action: ()) {}
 }
 
 impl<E: Debug> Debug for Edge<E> {
@@ -88,16 +103,8 @@ impl EdgeIndex {
 impl<N:Debug,E:Debug> Graph<N,E> {
     pub fn new() -> Graph<N,E> {
         Graph {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-        }
-    }
-
-    pub fn with_capacity(num_nodes: usize,
-                         num_edges: usize) -> Graph<N,E> {
-        Graph {
-            nodes: Vec::with_capacity(num_nodes),
-            edges: Vec::with_capacity(num_edges),
+            nodes: SnapshotVec::new(),
+            edges: SnapshotVec::new(),
         }
     }
 
