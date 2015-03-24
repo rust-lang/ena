@@ -61,32 +61,28 @@ impl<E: Debug> Debug for Edge<E> {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct NodeIndex(pub usize);
-#[allow(non_upper_case_globals)]
-pub const InvalidNodeIndex: NodeIndex = NodeIndex(usize::MAX);
 
 #[derive(Copy, PartialEq, Debug)]
 pub struct EdgeIndex(pub usize);
-#[allow(non_upper_case_globals)]
-pub const InvalidEdgeIndex: EdgeIndex = EdgeIndex(usize::MAX);
+
+pub const INVALID_EDGE_INDEX: EdgeIndex = EdgeIndex(usize::MAX);
 
 // Use a private field here to guarantee no more instances are created:
 #[derive(Copy, Debug)]
 pub struct Direction { repr: usize }
-#[allow(non_upper_case_globals)]
-pub const Outgoing: Direction = Direction { repr: 0 };
-#[allow(non_upper_case_globals)]
-pub const Incoming: Direction = Direction { repr: 1 };
+
+pub const OUTGOING: Direction = Direction { repr: 0 };
+
+pub const INCOMING: Direction = Direction { repr: 1 };
 
 impl NodeIndex {
-    fn get(&self) -> usize { let NodeIndex(v) = *self; v }
     /// Returns unique id (unique with respect to the graph holding associated node).
-    pub fn node_id(&self) -> usize { self.get() }
+    pub fn node_id(&self) -> usize { self.0 }
 }
 
 impl EdgeIndex {
-    fn get(&self) -> usize { let EdgeIndex(v) = *self; v }
     /// Returns unique id (unique with respect to the graph holding associated edge).
-    pub fn edge_id(&self) -> usize { self.get() }
+    pub fn edge_id(&self) -> usize { self.0 }
 }
 
 impl<N:Debug,E:Debug> Graph<N,E> {
@@ -128,22 +124,22 @@ impl<N:Debug,E:Debug> Graph<N,E> {
     pub fn add_node(&mut self, data: N) -> NodeIndex {
         let idx = self.next_node_index();
         self.nodes.push(Node {
-            first_edge: [InvalidEdgeIndex, InvalidEdgeIndex],
+            first_edge: [INVALID_EDGE_INDEX, INVALID_EDGE_INDEX],
             data: data
         });
         idx
     }
 
     pub fn mut_node_data<'a>(&'a mut self, idx: NodeIndex) -> &'a mut N {
-        &mut self.nodes[idx.get()].data
+        &mut self.nodes[idx.0].data
     }
 
     pub fn node_data<'a>(&'a self, idx: NodeIndex) -> &'a N {
-        &self.nodes[idx.get()].data
+        &self.nodes[idx.0].data
     }
 
     pub fn node<'a>(&'a self, idx: NodeIndex) -> &'a Node<N> {
-        &self.nodes[idx.get()]
+        &self.nodes[idx.0]
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -162,10 +158,10 @@ impl<N:Debug,E:Debug> Graph<N,E> {
         let idx = self.next_edge_index();
 
         // read current first of the list of edges from each node
-        let source_first = self.nodes[source.get()]
-                                     .first_edge[Outgoing.repr];
-        let target_first = self.nodes[target.get()]
-                                     .first_edge[Incoming.repr];
+        let source_first = self.nodes[source.0]
+                                     .first_edge[OUTGOING.repr];
+        let target_first = self.nodes[target.0]
+                                     .first_edge[INCOMING.repr];
 
         // create the new edge, with the previous firsts from each node
         // as the next pointers
@@ -177,22 +173,22 @@ impl<N:Debug,E:Debug> Graph<N,E> {
         });
 
         // adjust the firsts for each node target be the next object.
-        self.nodes[source.get()].first_edge[Outgoing.repr] = idx;
-        self.nodes[target.get()].first_edge[Incoming.repr] = idx;
+        self.nodes[source.0].first_edge[OUTGOING.repr] = idx;
+        self.nodes[target.0].first_edge[INCOMING.repr] = idx;
 
         return idx;
     }
 
     pub fn mut_edge_data<'a>(&'a mut self, idx: EdgeIndex) -> &'a mut E {
-        &mut self.edges[idx.get()].data
+        &mut self.edges[idx.0].data
     }
 
     pub fn edge_data<'a>(&'a self, idx: EdgeIndex) -> &'a E {
-        &self.edges[idx.get()].data
+        &self.edges[idx.0].data
     }
 
     pub fn edge<'a>(&'a self, idx: EdgeIndex) -> &'a Edge<E> {
-        &self.edges[idx.get()]
+        &self.edges[idx.0]
     }
 
     pub fn first_adjacent(&self, node: NodeIndex, dir: Direction) -> EdgeIndex {
@@ -200,7 +196,7 @@ impl<N:Debug,E:Debug> Graph<N,E> {
         //! This is useful if you wish to modify the graph while walking
         //! the linked list of edges.
 
-        self.nodes[node.get()].first_edge[dir.repr]
+        self.nodes[node.0].first_edge[dir.repr]
     }
 
     pub fn next_adjacent(&self, edge: EdgeIndex, dir: Direction) -> EdgeIndex {
@@ -208,7 +204,7 @@ impl<N:Debug,E:Debug> Graph<N,E> {
         //! This is useful if you wish to modify the graph while walking
         //! the linked list of edges.
 
-        self.edges[edge.get()].next_edge[dir.repr]
+        self.edges[edge.0].next_edge[dir.repr]
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -228,59 +224,29 @@ impl<N:Debug,E:Debug> Graph<N,E> {
         self.edges.iter().enumerate().all(|(i, edge)| f(EdgeIndex(i), edge))
     }
 
-    pub fn each_outgoing_edge<'a, F>(&'a self, source: NodeIndex, f: F) -> bool where
-        F: FnMut(EdgeIndex, &'a Edge<E>) -> bool,
-    {
-        //! Iterates over all outgoing edges from the node `from`
+    pub fn outgoing_edges(&self, source: NodeIndex) -> AdjacentEdges<N,E> {
+        self.adjacent_edges(source, OUTGOING)
+    }
 
-        self.each_adjacent_edge(source, Outgoing, f)
+    pub fn incoming_edges(&self, source: NodeIndex) -> AdjacentEdges<N,E> {
+        self.adjacent_edges(source, INCOMING)
+    }
+
+    pub fn adjacent_edges(&self, source: NodeIndex, direction: Direction) -> AdjacentEdges<N,E> {
+        let first_edge = self.node(source).first_edge[direction.repr];
+        AdjacentEdges { graph: self, direction: direction, next: first_edge }
     }
 
     pub fn successor_nodes<'a>(&'a self, source: NodeIndex) -> Vec<NodeIndex> {
-        let mut result = Vec::new();
-        self.each_outgoing_edge(source, |_, edge| {
-            result.push(edge.target);
-            true
-        });
-        result
-    }
-
-    pub fn each_incoming_edge<'a, F>(&'a self, target: NodeIndex, f: F) -> bool where
-        F: FnMut(EdgeIndex, &'a Edge<E>) -> bool,
-    {
-        //! Iterates over all incoming edges to the node `target`
-
-        self.each_adjacent_edge(target, Incoming, f)
+        self.outgoing_edges(source)
+            .map(|(_, edge)| edge.target)
+            .collect()
     }
 
     pub fn predecessor_nodes<'a>(&'a self, target: NodeIndex) -> Vec<NodeIndex> {
-        let mut result = Vec::new();
-        self.each_incoming_edge(target, |_, edge| {
-            result.push(edge.source);
-            true
-        });
-        result
-    }
-
-    pub fn each_adjacent_edge<'a, F>(&'a self,
-                                     node: NodeIndex,
-                                     dir: Direction,
-                                     mut f: F)
-                                     -> bool where
-        F: FnMut(EdgeIndex, &'a Edge<E>) -> bool,
-    {
-        //! Iterates over all edges adjacent to the node `node`
-        //! in the direction `dir` (either `Outgoing` or `Incoming)
-
-        let mut edge_idx = self.first_adjacent(node, dir);
-        while edge_idx != InvalidEdgeIndex {
-            let edge = &self.edges[edge_idx.get()];
-            if !f(edge_idx, edge) {
-                return false;
-            }
-            edge_idx = edge.next_edge[dir.repr];
-        }
-        return true;
+        self.incoming_edges(target)
+            .map(|(_, edge)| edge.source)
+            .collect()
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -315,6 +281,30 @@ impl<N:Debug,E:Debug> Graph<N,E> {
     }
 }
 
+///////////////////////////////////////////////////////////////////////////
+// Iterators
+
+struct AdjacentEdges<'g,N:'g,E:'g> {
+    graph: &'g Graph<N, E>,
+    direction: Direction,
+    next: EdgeIndex,
+}
+
+impl<'g, N:Debug, E:Debug> Iterator for AdjacentEdges<'g, N, E> {
+    type Item = (EdgeIndex, &'g Edge<E>);
+
+    fn next(&mut self) -> Option<(EdgeIndex, &'g Edge<E>)> {
+        let edge_index = self.next;
+        if edge_index == INVALID_EDGE_INDEX {
+            return None;
+        }
+
+        let edge = self.graph.edge(edge_index);
+        self.next = edge.next_edge[self.direction.repr];
+        Some((edge_index, edge))
+    }
+}
+
 pub struct DepthFirstTraversal<'g, N:'g, E:'g> {
     graph: &'g Graph<N, E>,
     stack: Vec<NodeIndex>,
@@ -329,12 +319,12 @@ impl<'g, N:Debug, E:Debug> Iterator for DepthFirstTraversal<'g, N, E> {
             if !self.visited.insert(idx.node_id()) {
                 continue;
             }
-            self.graph.each_outgoing_edge(idx, |_, e| -> bool {
-                if !self.visited.contains(e.target().node_id()) {
-                    self.stack.push(e.target());
+
+            for (_, edge) in self.graph.outgoing_edges(idx) {
+                if !self.visited.contains(edge.target().node_id()) {
+                    self.stack.push(edge.target());
                 }
-                true
-            });
+            }
 
             return Some(self.graph.node_data(idx));
         }
@@ -347,7 +337,7 @@ pub fn each_edge_index<F>(max_edge_index: EdgeIndex, mut f: F) where
     F: FnMut(EdgeIndex) -> bool,
 {
     let mut i = 0;
-    let n = max_edge_index.get();
+    let n = max_edge_index.0;
     while i < n {
         if !f(EdgeIndex(i)) {
             return;
@@ -407,8 +397,8 @@ mod test {
         let graph = create_graph();
         let expected = ["A", "B", "C", "D", "E", "F"];
         graph.each_node(|idx, node| {
-            assert_eq!(&expected[idx.get()], graph.node_data(idx));
-            assert_eq!(expected[idx.get()], node.data);
+            assert_eq!(&expected[idx.0], graph.node_data(idx));
+            assert_eq!(expected[idx.0], node.data);
             true
         });
     }
@@ -418,8 +408,8 @@ mod test {
         let graph = create_graph();
         let expected = ["AB", "BC", "BD", "DE", "EC", "FB"];
         graph.each_edge(|idx, edge| {
-            assert_eq!(&expected[idx.get()], graph.edge_data(idx));
-            assert_eq!(expected[idx.get()], edge.data);
+            assert_eq!(&expected[idx.0], graph.edge_data(idx));
+            assert_eq!(expected[idx.0], edge.data);
             true
         });
     }
@@ -432,7 +422,7 @@ mod test {
         assert!(graph.node_data(start_index) == &start_data);
 
         let mut counter = 0;
-        graph.each_incoming_edge(start_index, |edge_index, edge| {
+        for (edge_index, edge) in graph.incoming_edges(start_index) {
             assert!(graph.edge_data(edge_index) == &edge.data);
             assert!(counter < expected_incoming.len());
             debug!("counter={:?} expected={:?} edge_index={:?} edge={:?}",
@@ -445,12 +435,11 @@ mod test {
                 }
             }
             counter += 1;
-            true
-        });
+        }
         assert_eq!(counter, expected_incoming.len());
 
         let mut counter = 0;
-        graph.each_outgoing_edge(start_index, |edge_index, edge| {
+        for (edge_index, edge) in graph.outgoing_edges(start_index) {
             assert!(graph.edge_data(edge_index) == &edge.data);
             assert!(counter < expected_outgoing.len());
             debug!("counter={:?} expected={:?} edge_index={:?} edge={:?}",
@@ -463,8 +452,7 @@ mod test {
                 }
             }
             counter += 1;
-            true
-        });
+        }
         assert_eq!(counter, expected_outgoing.len());
     }
 

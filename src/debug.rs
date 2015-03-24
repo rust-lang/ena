@@ -1,6 +1,7 @@
+#[cfg(test)]
 use std::cell::Cell;
-use std::sync::atomic::{AtomicIsize, ATOMIC_ISIZE_INIT, Ordering};
 
+#[cfg(test)]
 thread_local!(pub static ENABLED: Cell<u32> = Cell::new(0));
 
 #[cfg(test)]
@@ -21,8 +22,10 @@ macro_rules! debug {
     ($($arg:tt)*) => ( () )
 }
 
+#[cfg(test)]
 pub struct Logger { _x: () }
 
+#[cfg(test)]
 impl Logger {
     pub fn new() -> Logger {
         ENABLED.with(|slot| slot.set(slot.get() + 1));
@@ -30,6 +33,7 @@ impl Logger {
     }
 }
 
+#[cfg(test)]
 impl Drop for Logger {
     fn drop(&mut self) {
         ENABLED.with(|slot| slot.set(slot.get() - 1));
