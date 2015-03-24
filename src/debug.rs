@@ -3,15 +3,22 @@ use std::sync::atomic::{AtomicIsize, ATOMIC_ISIZE_INIT, Ordering};
 
 thread_local!(pub static ENABLED: Cell<u32> = Cell::new(0));
 
+#[cfg(test)]
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => (
         ::debug::ENABLED.with(|slot| {
-            //if slot.get() != 0 {
+            if slot.get() != 0 {
                 println!("{}", format_args!($($arg)+));
-            //}
+            }
         })
     )
+}
+
+#[cfg(not(test))]
+#[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => ( () )
 }
 
 pub struct Logger { _x: () }
