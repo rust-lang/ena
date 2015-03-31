@@ -9,6 +9,3 @@ mod snapshot_vec;
 mod cc;
 mod unify;
 mod bitvec;
-
-#[cfg(test)] mod test;
-#[cfg(test)] mod cc_test;

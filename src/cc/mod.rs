@@ -5,6 +5,9 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use unify::{UnifyKey, UnificationTable};
 
+#[cfg(test)]
+mod test;
+
 pub struct CongruenceClosure<K:Hash+Eq> {
     map: HashMap<K,Token>,
     table: UnificationTable<Token>,

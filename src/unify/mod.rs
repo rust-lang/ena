@@ -13,6 +13,9 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use snapshot_vec as sv;
 
+#[cfg(test)]
+mod test;
+
 /// This trait is implemented by any type that can serve as a type
 /// variable. We call such variables *unification keys*. For example,
 /// this trait is implemented by `IntVid`, which represents integral
