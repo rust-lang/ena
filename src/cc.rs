@@ -75,10 +75,10 @@ impl<K:Key> CongruenceClosure<K> {
 
         for successor in successors {
             // get set of predecessors for each successor BEFORE we add the new node
-            let predecessors = self.graph.predecessor_nodes(token.node());
+            let predecessors: Vec<_> = self.graph.predecessor_nodes(token.node()).collect();
 
             debug!("add: key={:?} successor={:?} predecessors={:?}",
-                     key, successor, predecessors);
+                   key, successor, predecessors);
 
             // add edge from new node to its successors
             self.graph.add_edge(token.node(), successor.node(), ());
@@ -159,7 +159,7 @@ impl<'a, K:Key> Algorithm<'a,K> {
     fn all_preds(&mut self, u: Token) -> Vec<Token> {
         let graph = self.graph;
         self.table.unioned_keys(u)
-                  .flat_map(|k| graph.predecessor_nodes(k.node()).into_iter())
+                  .flat_map(|k| graph.predecessor_nodes(k.node()))
                   .map(|i| Token::from_node(i))
                   .collect()
     }
@@ -174,8 +174,8 @@ impl<'a, K:Key> Algorithm<'a,K> {
     }
 
     fn congruent(&mut self, p_u: Token, p_v: Token) -> bool {
-        let ss_u = self.graph.successor_nodes(p_u.node());
-        let ss_v = self.graph.successor_nodes(p_v.node());
+        let ss_u: Vec<_> = self.graph.successor_nodes(p_u.node()).collect();
+        let ss_v: Vec<_> = self.graph.successor_nodes(p_v.node()).collect();
         ss_u.len() == ss_v.len() && {
             ss_u.into_iter()
                 .zip(ss_v.into_iter())
