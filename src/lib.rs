@@ -4,6 +4,7 @@
 #[macro_use]
 mod debug;
 
+mod constraint;
 mod graph;
 mod snapshot_vec;
 mod cc;
