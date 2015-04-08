@@ -199,9 +199,9 @@ impl<D:SnapshotVecDelegate> ops::DerefMut for SnapshotVec<D> {
 
 impl<D:SnapshotVecDelegate> ops::Index<usize> for SnapshotVec<D> {
     type Output = D::Value;
-    fn index(&self, index: &usize) -> &D::Value { self.get(*index) }
+    fn index(&self, index: usize) -> &D::Value { self.get(index) }
 }
 
 impl<D:SnapshotVecDelegate> ops::IndexMut<usize> for SnapshotVec<D> {
-    fn index_mut(&mut self, index: &usize) -> &mut D::Value { self.get_mut(*index) }
+    fn index_mut(&mut self, index: usize) -> &mut D::Value { self.get_mut(index) }
 }

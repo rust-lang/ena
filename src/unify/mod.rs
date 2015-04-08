@@ -76,7 +76,7 @@ pub struct Snapshot<K:UnifyKey> {
     snapshot: sv::Snapshot,
 }
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 pub struct Delegate<K>(PhantomData<K>);
 
 impl<K:UnifyKey> VarValue<K> {

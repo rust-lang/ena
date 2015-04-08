@@ -1,5 +1,5 @@
-#![feature(std_misc)]
-#![crate_name="rusty-cc"]
+#![feature(std_misc,test)]
+#![crate_name="rusty_cc"]
 
 #[macro_use]
 mod debug;

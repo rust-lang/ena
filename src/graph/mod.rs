@@ -77,16 +77,16 @@ impl<E: Debug> Debug for Edge<E> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct NodeIndex(pub usize);
 
-#[derive(Copy, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct EdgeIndex(pub usize);
 
 pub const INVALID_EDGE_INDEX: EdgeIndex = EdgeIndex(usize::MAX);
 
 // Use a private field here to guarantee no more instances are created:
-#[derive(Copy, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Direction { repr: usize }
 
 pub const OUTGOING: Direction = Direction { repr: 0 };
