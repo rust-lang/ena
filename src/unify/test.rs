@@ -54,7 +54,6 @@ fn big_array_bench(b: &mut Bencher) {
         keys.push(ut.new_key(()));
     }
 
-
     b.iter(|| {
         for i in 1..max {
             let l = keys[i-1];
