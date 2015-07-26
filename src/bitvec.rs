@@ -21,6 +21,8 @@ impl BitVector {
         (self.data[word] & mask) != 0
     }
 
+    /// Inserts a bit into the bitvector, returning true if the bit is
+    /// newly added, false if it was already present.
     pub fn insert(&mut self, bit: usize) -> bool {
         let (word, mask) = self.word_mask(bit);
         let data = &mut self.data[word];
