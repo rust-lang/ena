@@ -1,5 +1,7 @@
 //! Constraint graph.
 
+#![allow(dead_code)]
+
 use graph::{Graph, NodeIndex};
 use std::collections::VecDeque;
 use std::u32;
@@ -60,9 +62,9 @@ impl<L> ConstraintGraph<L>
                          value: L::Element)
                          -> Vec<PropagationError<L>>
     {
-        let mut propagation = Propagation::new(&self.lattice,
-                                               &self.graph,
-                                               &mut self.values);
+        let propagation = Propagation::new(&self.lattice,
+                                           &self.graph,
+                                           &mut self.values);
         propagation.propagate(value, var)
     }
 
@@ -77,7 +79,7 @@ impl<L> ConstraintGraph<L>
             return vec![];
         }
 
-        let edge_index = self.graph.add_edge(source_node, target_node, ());
+        self.graph.add_edge(source_node, target_node, ());
         let value = self.current_value(source);
         self.constrain_var(target, value)
     }
@@ -130,7 +132,6 @@ impl<'p,L> Propagation<'p,L>
         self.update_node(value, var);
 
         while let Some(dirty) = self.queue.pop_front() {
-            let dirty_node = dirty.to_node_index();
             let value = self.values[dirty.index()].clone();
 
             for succ_node_index in self.graph.successor_nodes(dirty.to_node_index()) {

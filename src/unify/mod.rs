@@ -27,22 +27,13 @@ mod test;
 ///
 /// Implementations of this trait are at the end of this file.
 pub trait UnifyKey : Copy + Clone + Debug + PartialEq {
-    type Value : UnifyValue;
+    type Value: Clone + PartialEq + Debug;
 
     fn index(&self) -> u32;
 
     fn from_index(u: u32) -> Self;
 
-    fn tag(k: Option<Self>) -> &'static str;
-}
-
-/// Trait for valid types that a type variable can be set to. Note that
-/// this is typically not the end type that the value will take on, but
-/// rather an `Option` wrapper (where `None` represents a variable
-/// whose value is not yet set).
-///
-/// Implementations of this trait are at the end of this file.
-pub trait UnifyValue : Clone + PartialEq + Debug {
+    fn tag() -> &'static str;
 }
 
 /// Value of a unification key. We implement Tarjan's union-find
@@ -77,7 +68,7 @@ pub struct Snapshot<K:UnifyKey> {
 }
 
 #[derive(Copy, Clone)]
-pub struct Delegate<K>(PhantomData<K>);
+struct Delegate<K>(PhantomData<K>);
 
 impl<K:UnifyKey> VarValue<K> {
     fn new_var(key: K, value: K::Value) -> VarValue<K> {
@@ -97,8 +88,8 @@ impl<K:UnifyKey> VarValue<K> {
         VarValue { parent: to, sibling: sibling, ..self }
     }
 
-    fn add_child(self, child: K, rank: u32) -> VarValue<K> {
-        VarValue { child: child, rank: rank, ..self }
+    fn root(self, rank: u32, child: K, value: K::Value) -> VarValue<K> {
+        VarValue { rank: rank, child: child, value: value, ..self }
     }
 
     /// Returns the key of this node. Only valid if this is a root
@@ -150,14 +141,14 @@ impl<K:UnifyKey> UnificationTable<K> {
     /// Reverses all changes since the last snapshot. Also
     /// removes any keys that have been created since then.
     pub fn rollback_to(&mut self, snapshot: Snapshot<K>) {
-        debug!("{}: rollback_to()", UnifyKey::tag(None::<K>));
+        debug!("{}: rollback_to()", K::tag());
         self.values.rollback_to(snapshot.snapshot);
     }
 
     /// Commits all changes since the last snapshot. Of course, they
     /// can still be undone if there is a snapshot further out.
     pub fn commit(&mut self, snapshot: Snapshot<K>) {
-        debug!("{}: commit()", UnifyKey::tag(None::<K>));
+        debug!("{}: commit()", K::tag());
         self.values.commit(snapshot.snapshot);
     }
 
@@ -166,7 +157,7 @@ impl<K:UnifyKey> UnificationTable<K> {
         let key: K = UnifyKey::from_index(len as u32);
         self.values.push(VarValue::new_var(key, value));
         debug!("{}: created new key: {:?}",
-               UnifyKey::tag(None::<K>),
+               K::tag(),
                key);
         key
     }
@@ -236,23 +227,27 @@ impl<K:UnifyKey> UnificationTable<K> {
         if root_a.rank > root_b.rank {
             // a has greater rank, so a should become b's parent,
             // i.e., b should redirect to a.
-            self.redirect_root(root_a.rank, root_b, root_a);
+            self.redirect_root(root_a.rank, root_b, root_a, new_value);
         } else if root_a.rank < root_b.rank {
             // b has greater rank, so a should redirect to b.
-            self.redirect_root(root_b.rank, root_a, root_b);
+            self.redirect_root(root_b.rank, root_a, root_b, new_value);
         } else {
             // If equal, redirect one to the other and increment the
             // other's rank.
-            self.redirect_root(root_a.rank + 1, root_a, root_b);
+            self.redirect_root(root_a.rank + 1, root_a, root_b, new_value);
         }
     }
 
-    fn redirect_root(&mut self, new_rank: u32, old_root: VarValue<K>, new_root: VarValue<K>) {
+    fn redirect_root(&mut self,
+                     new_rank: u32,
+                     old_root: VarValue<K>,
+                     new_root: VarValue<K>,
+                     new_value: K::Value) {
         let old_root_key = old_root.key();
         let new_root_key = new_root.key();
         let sibling = new_root.child(new_root_key).unwrap_or(old_root_key);
         self.set(old_root_key, old_root.redirect(new_root_key, sibling));
-        self.set(new_root_key, new_root.add_child(old_root_key, new_rank));
+        self.set(new_root_key, new_root.root(new_rank, old_root_key, new_value));
     }
 
 }
@@ -358,7 +353,6 @@ impl<'tcx,K> UnificationTable<K>
 impl<'tcx,K,V> UnificationTable<K>
     where K: UnifyKey<Value=Option<V>>,
           V: Clone+PartialEq,
-          Option<V>: UnifyValue,
 {
     pub fn unify_var_var(&mut self,
                          a_id: K,
@@ -400,7 +394,6 @@ impl<'tcx,K,V> UnificationTable<K>
                            -> Result<(),(V,V)>
     {
         let mut node_a = self.get(a_id);
-        let a_id = node_a.key();
 
         match node_a.value {
             None => {
@@ -428,4 +421,3 @@ impl<'tcx,K,V> UnificationTable<K>
     }
 }
 
-impl UnifyValue for () { }

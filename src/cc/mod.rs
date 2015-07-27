@@ -45,7 +45,7 @@ impl UnifyKey for Token {
     type Value = ();
     fn index(&self) -> u32 { self.index }
     fn from_index(i: u32) -> Token { Token::new(i) }
-    fn tag(_: Option<Token>) -> &'static str { "CongruenceClosure" }
+    fn tag() -> &'static str { "CongruenceClosure" }
 }
 
 
