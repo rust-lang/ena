@@ -1,5 +1,7 @@
-#![feature(std_misc,test)]
 #![crate_name="rusty_cc"]
+
+#![feature(test)]
+#![allow(dead_code)]
 
 #[macro_use]
 mod debug;
