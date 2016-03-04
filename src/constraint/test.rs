@@ -46,12 +46,9 @@ fn cycle() {
     // v3 <---- v3
 
     let mut graph = ConstraintGraph::new(MaxLattice);
-    let vars = [graph.new_var(0),
-                    graph.new_var(0),
-                    graph.new_var(0),
-                    graph.new_var(0)];
+    let vars = [graph.new_var(0), graph.new_var(0), graph.new_var(0), graph.new_var(0)];
 
-    for i in 0 .. 4 {
+    for i in 0..4 {
         graph.add_edge(vars[i], vars[(i + 1) % vars.len()]);
     }
 

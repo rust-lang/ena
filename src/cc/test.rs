@@ -106,4 +106,3 @@ indirect_test! { indirect_test_1: VAR_1, VAR_2; VAR_1, VAR_0 }
 indirect_test! { indirect_test_2: VAR_2, VAR_1; VAR_1, VAR_0 }
 indirect_test! { indirect_test_3: VAR_1, VAR_2; VAR_0, VAR_1 }
 indirect_test! { indirect_test_4: VAR_2, VAR_1; VAR_0, VAR_1 }
-

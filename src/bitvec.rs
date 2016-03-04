@@ -1,7 +1,7 @@
 use std::iter;
 
 pub struct BitVector {
-    data: Vec<u64>
+    data: Vec<u64>,
 }
 
 impl BitVector {

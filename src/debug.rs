@@ -23,7 +23,9 @@ macro_rules! debug {
 }
 
 #[cfg(test)]
-pub struct Logger { _x: () }
+pub struct Logger {
+    _x: (),
+}
 
 #[cfg(test)]
 impl Logger {

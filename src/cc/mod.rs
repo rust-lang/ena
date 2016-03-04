@@ -8,10 +8,10 @@ use unify::{UnifyKey, UnificationTable};
 #[cfg(test)]
 mod test;
 
-pub struct CongruenceClosure<K:Hash+Eq> {
-    map: HashMap<K,Token>,
+pub struct CongruenceClosure<K: Hash + Eq> {
+    map: HashMap<K, Token>,
     table: UnificationTable<Token>,
-    graph: Graph<K,()>,
+    graph: Graph<K, ()>,
 }
 
 pub trait Key : Hash + Eq + Clone + Debug {
@@ -43,13 +43,19 @@ impl Token {
 
 impl UnifyKey for Token {
     type Value = ();
-    fn index(&self) -> u32 { self.index }
-    fn from_index(i: u32) -> Token { Token::new(i) }
-    fn tag() -> &'static str { "CongruenceClosure" }
+    fn index(&self) -> u32 {
+        self.index
+    }
+    fn from_index(i: u32) -> Token {
+        Token::new(i)
+    }
+    fn tag() -> &'static str {
+        "CongruenceClosure"
+    }
 }
 
 
-impl<K:Key> CongruenceClosure<K> {
+impl<K: Key> CongruenceClosure<K> {
     pub fn new() -> CongruenceClosure<K> {
         CongruenceClosure {
             map: HashMap::new(),
@@ -68,11 +74,10 @@ impl<K:Key> CongruenceClosure<K> {
             return token;
         }
 
-        let successors: Vec<Token> =
-            key.successors()
-               .into_iter()
-               .map(|s| self.add(s))
-               .collect();
+        let successors: Vec<Token> = key.successors()
+                                        .into_iter()
+                                        .map(|s| self.add(s))
+                                        .collect();
 
         debug!("add: key={:?} successors={:?}", key, successors);
 
@@ -81,7 +86,9 @@ impl<K:Key> CongruenceClosure<K> {
             let predecessors: Vec<_> = self.graph.predecessor_nodes(token.node()).collect();
 
             debug!("add: key={:?} successor={:?} predecessors={:?}",
-                   key, successor, predecessors);
+                   key,
+                   successor,
+                   predecessors);
 
             // add edge from new node to its successors
             self.graph.add_edge(token.node(), successor.node(), ());
@@ -112,9 +119,7 @@ impl<K:Key> CongruenceClosure<K> {
 
     fn new_token(&mut self, key: &K) -> (bool, Token) {
         match self.map.entry(key.clone()) {
-            Entry::Occupied(slot) => {
-                (false, slot.get().clone())
-            }
+            Entry::Occupied(slot) => (false, slot.get().clone()),
             Entry::Vacant(slot) => {
                 let token = self.table.new_key(());
                 let node = self.graph.add_node(key.clone());
@@ -133,15 +138,14 @@ impl<K:Key> CongruenceClosure<K> {
     }
 }
 
-struct Algorithm<'a,K:'a> {
-    graph: &'a Graph<K,()>,
+struct Algorithm<'a, K: 'a> {
+    graph: &'a Graph<K, ()>,
     table: &'a mut UnificationTable<Token>,
 }
 
-impl<'a, K:Key> Algorithm<'a,K> {
+impl<'a, K: Key> Algorithm<'a, K> {
     fn merge(&mut self, u: Token, v: Token) {
-        debug!("merge(): u={:?} v={:?}",
-                 u, v);
+        debug!("merge(): u={:?} v={:?}", u, v);
 
         if self.unioned(u, v) {
             return;
@@ -161,15 +165,15 @@ impl<'a, K:Key> Algorithm<'a,K> {
 
     fn all_preds(&mut self, u: Token) -> Vec<Token> {
         let graph = self.graph;
-        self.table.unioned_keys(u)
-                  .flat_map(|k| graph.predecessor_nodes(k.node()))
-                  .map(|i| Token::from_node(i))
-                  .collect()
+        self.table
+            .unioned_keys(u)
+            .flat_map(|k| graph.predecessor_nodes(k.node()))
+            .map(|i| Token::from_node(i))
+            .collect()
     }
 
     fn maybe_merge(&mut self, p_u: Token, p_v: Token) {
-        debug!("maybe_merge(): p_u={:?} p_v={:?}",
-                 p_u, p_v);
+        debug!("maybe_merge(): p_u={:?} p_v={:?}", p_u, p_v);
 
         if !self.unioned(p_u, p_v) && self.shallow_eq(p_u, p_v) && self.congruent(p_u, p_v) {
             self.merge(p_u, p_v);
@@ -179,11 +183,11 @@ impl<'a, K:Key> Algorithm<'a,K> {
     fn congruent(&mut self, p_u: Token, p_v: Token) -> bool {
         let ss_u: Vec<_> = self.graph.successor_nodes(p_u.node()).collect();
         let ss_v: Vec<_> = self.graph.successor_nodes(p_v.node()).collect();
-        ss_u.len() == ss_v.len() && {
+        ss_u.len() == ss_v.len() &&
+        {
             ss_u.into_iter()
                 .zip(ss_v.into_iter())
-                .all(|(s_u, s_v)| self.unioned(Token::from_node(s_u),
-                                               Token::from_node(s_v)))
+                .all(|(s_u, s_v)| self.unioned(Token::from_node(s_u), Token::from_node(s_v)))
         }
     }
 
