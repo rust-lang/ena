@@ -70,10 +70,15 @@ impl<K: Key> CongruenceClosure<K> {
         let (is_new, token) = self.new_token(&key);
         debug!("add: key={:?} is_new={:?} token={:?}", key, is_new, token);
 
+        // if this node is already in the graph, we are done
         if !is_new {
             return token;
         }
 
+        // Otherwise, we want to add the 'successors' also. So, for
+        // example, if we are adding `Box<Foo>`, the successor would
+        // be `Foo`.  So go ahead and recursively add `Foo` if it
+        // doesn't already exist.
         let successors: Vec<Token> = key.successors()
                                         .into_iter()
                                         .map(|s| self.add(s))
@@ -81,8 +86,17 @@ impl<K: Key> CongruenceClosure<K> {
 
         debug!("add: key={:?} successors={:?}", key, successors);
 
+        // Now we have to be a bit careful. It might be that we are
+        // adding `Box<Foo>`, but `Foo` was already present, and in
+        // fact equated with `Bar`. That is, maybe we had a graph like:
+        //
+        //      Box<Bar> -> Bar == Foo
+        //
+        // Now we just added `Box<Foo>`, but we need to equate
+        // `Box<Foo>` and `Box<Bar>`.
         for successor in successors {
-            // get set of predecessors for each successor BEFORE we add the new node
+            // get set of predecessors for each successor BEFORE we add the new node;
+            // this would be `Box<Bar>` in the above example.
             let predecessors: Vec<_> = self.graph.predecessor_nodes(token.node()).collect();
 
             debug!("add: key={:?} successor={:?} predecessors={:?}",
@@ -90,9 +104,23 @@ impl<K: Key> CongruenceClosure<K> {
                    successor,
                    predecessors);
 
-            // add edge from new node to its successors
+            // add edge from new node `Box<Foo>` to its successor `Foo`
             self.graph.add_edge(token.node(), successor.node(), ());
 
+            // Now we have to consider merging the old predecessors,
+            // like `Box<Bar>`, with this new node `Box<Foo>`.
+            //
+            // Note that in other cases it might be that no merge will
+            // occur. For example, if we were adding `(A1, B1)` to a
+            // graph like this:
+            //
+            //     (A, B) -> A == A1
+            //        |
+            //        v
+            //        B
+            //
+            // In this case, the predecessor would be `(A, B)`; but we don't
+            // know that `B == B1`, so we can't merge that with `(A1, B1)`.
             for predecessor in predecessors {
                 self.algorithm().maybe_merge(token, Token::from_node(predecessor));
             }
@@ -180,6 +208,10 @@ impl<'a, K: Key> Algorithm<'a, K> {
         }
     }
 
+    // Check whether each of the successors are unioned. So if you
+    // have `Box<X1>` and `Box<X2>`, this is true if `X1 == X2`. (The
+    // result of this fn is not really meaningful unless the two nodes
+    // are shallow equal here.)
     fn congruent(&mut self, p_u: Token, p_v: Token) -> bool {
         let ss_u: Vec<_> = self.graph.successor_nodes(p_u.node()).collect();
         let ss_v: Vec<_> = self.graph.successor_nodes(p_v.node()).collect();
@@ -191,6 +223,8 @@ impl<'a, K: Key> Algorithm<'a, K> {
         }
     }
 
+    // Compare the local data, not considering successor nodes. So e.g
+    // `Box<X>` and `Box<Y>` are shallow equal for any `X` and `Y`.
     fn shallow_eq(&self, u: Token, v: Token) -> bool {
         let key_u = self.graph.node_data(u.node());
         let key_v = self.graph.node_data(v.node());
