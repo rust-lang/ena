@@ -1,6 +1,6 @@
 #![crate_name="rusty_cc"]
 
-#![feature(test)]
+#![cfg_attr(test, feature(test))]
 #![allow(dead_code)]
 
 #[macro_use]

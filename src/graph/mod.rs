@@ -290,7 +290,7 @@ impl<N:Debug,E:Debug> Graph<N,E> {
 ///////////////////////////////////////////////////////////////////////////
 // Iterators
 
-struct AdjacentEdges<'g,N,E>
+pub struct AdjacentEdges<'g,N,E>
     where N:'g, E:'g
 {
     graph: &'g Graph<N, E>,
@@ -323,7 +323,7 @@ impl<'g, N:Debug, E:Debug> Iterator for AdjacentEdges<'g, N, E> {
     }
 }
 
-struct AdjacentTargets<'g,N:'g,E:'g>
+pub struct AdjacentTargets<'g,N:'g,E:'g>
     where N:'g, E:'g
 {
     edges: AdjacentEdges<'g,N,E>,
@@ -337,7 +337,7 @@ impl<'g, N:Debug, E:Debug> Iterator for AdjacentTargets<'g, N, E> {
     }
 }
 
-struct AdjacentSources<'g,N:'g,E:'g>
+pub struct AdjacentSources<'g,N:'g,E:'g>
     where N:'g, E:'g
 {
     edges: AdjacentEdges<'g,N,E>,

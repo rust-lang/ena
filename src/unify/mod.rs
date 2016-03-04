@@ -351,8 +351,8 @@ impl<'tcx,K> UnificationTable<K>
 // need to worry about.
 
 impl<'tcx,K,V> UnificationTable<K>
-    where K: UnifyKey<Value=Option<V>>,
-          V: Clone+PartialEq,
+    where K: Debug+UnifyKey<Value=Option<V>>,
+          V: Debug+Clone+PartialEq,
 {
     pub fn unify_var_var(&mut self,
                          a_id: K,
