@@ -10,3 +10,7 @@ test unify::test::big_array_bench ... bench:   1,349,796 ns/iter (+/- 233,931)
 test unify::test::big_array_bench ... bench:   1,367,082 ns/iter (+/- 301,644)
 test unify::test::big_array_bench ... bench:   1,358,154 ns/iter (+/- 348,796)
 
+copy less
+test unify::test::big_array_bench ... bench:     744,775 ns/iter (+/- 51,865)
+test unify::test::big_array_bench ... bench:     750,939 ns/iter (+/- 146,417)
+test unify::test::big_array_bench ... bench:     754,104 ns/iter (+/- 121,968)

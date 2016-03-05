@@ -85,21 +85,21 @@ impl<K: UnifyKey> VarValue<K> {
         }
     }
 
-    fn redirect(self, to: K, sibling: K) -> VarValue<K> {
+    fn redirect(&self, to: K, sibling: K) -> VarValue<K> {
         assert_eq!(self.parent, self.sibling); // ...since this used to be a root
         VarValue {
             parent: to,
             sibling: sibling,
-            ..self
+            ..self.clone()
         }
     }
 
-    fn root(self, rank: u32, child: K, value: K::Value) -> VarValue<K> {
+    fn root(&self, rank: u32, child: K, value: K::Value) -> VarValue<K> {
         VarValue {
             rank: rank,
             child: child,
             value: value,
-            ..self
+            ..self.clone()
         }
     }
 
@@ -172,11 +172,15 @@ impl<K: UnifyKey> UnificationTable<K> {
     }
 
     pub fn unioned_keys(&mut self, key: K) -> UnionedKeys<K> {
-        let root_key = self.get(key).key();
+        let root_key = self.get_root_key(key);
         UnionedKeys {
             table: self,
             stack: vec![root_key],
         }
+    }
+
+    fn value(&self, key: K) -> &VarValue<K> {
+        &self.values[key.index() as usize]
     }
 
     /// Find the root node for `vid`. This uses the standard
@@ -185,24 +189,23 @@ impl<K: UnifyKey> UnificationTable<K> {
     ///
     /// NB. This is a building-block operation and you would probably
     /// prefer to call `probe` below.
-    fn get(&mut self, vid: K) -> VarValue<K> {
-        let index = vid.index() as usize;
+    fn get_root_key(&mut self, vid: K) -> K {
         let redirect = {
-            let value = self.values.get(index);
-            match value.parent(vid) {
-                None => return value.clone(),
+            match self.value(vid).parent(vid) {
+                None => return vid,
                 Some(redirect) => redirect,
             }
         };
 
-        let root: VarValue<K> = self.get(redirect);
-        if root.key() != redirect {
+        let root_key: K = self.get_root_key(redirect);
+        if root_key != redirect {
             // Path compression
-            let mut value = self.values.get(index).clone();
-            value.parent = root.key();
-            self.values.set(index, value);
+            let mut value = self.value(vid).clone();
+            value.parent = root_key;
+            self.set_value(vid, value);
         }
-        root
+
+        root_key
     }
 
     fn is_root(&self, key: K) -> bool {
@@ -212,7 +215,7 @@ impl<K: UnifyKey> UnificationTable<K> {
 
     /// Sets the value for `vid` to `new_value`. `vid` MUST be a root
     /// node! This is an internal operation used to impl other things.
-    fn set(&mut self, key: K, new_value: VarValue<K>) {
+    fn set_value(&mut self, key: K, new_value: VarValue<K>) {
         debug_assert!(self.is_root(key));
 
         debug!("Updating variable {:?} to {:?}", key, new_value);
@@ -229,38 +232,41 @@ impl<K: UnifyKey> UnificationTable<K> {
     /// really more of a building block. If the values associated with
     /// your key are non-trivial, you would probably prefer to call
     /// `unify_var_var` below.
-    fn unify(&mut self, root_a: VarValue<K>, root_b: VarValue<K>, new_value: K::Value) {
-        debug!("unify(root_a(id={:?}, rank={:?}), root_b(id={:?}, rank={:?}))",
-               root_a.key(),
-               root_a.rank,
-               root_b.key(),
-               root_b.rank);
+    fn unify_roots(&mut self, key_a: K, key_b: K, new_value: K::Value) {
+        debug!("unify(key_a={:?}, key_b={:?})",
+               key_a,
+               key_b);
 
-        if root_a.rank > root_b.rank {
+        let rank_a = self.value(key_a).rank;
+        let rank_b = self.value(key_b).rank;
+        if rank_a > rank_b {
             // a has greater rank, so a should become b's parent,
             // i.e., b should redirect to a.
-            self.redirect_root(root_a.rank, root_b, root_a, new_value);
-        } else if root_a.rank < root_b.rank {
+            self.redirect_root(rank_a, key_b, key_a, new_value);
+        } else if rank_a < rank_b {
             // b has greater rank, so a should redirect to b.
-            self.redirect_root(root_b.rank, root_a, root_b, new_value);
+            self.redirect_root(rank_b, key_a, key_b, new_value);
         } else {
             // If equal, redirect one to the other and increment the
             // other's rank.
-            self.redirect_root(root_a.rank + 1, root_a, root_b, new_value);
+            self.redirect_root(rank_a + 1, key_a, key_b, new_value);
         }
     }
 
     fn redirect_root(&mut self,
                      new_rank: u32,
-                     old_root: VarValue<K>,
-                     new_root: VarValue<K>,
+                     old_root_key: K,
+                     new_root_key: K,
                      new_value: K::Value) {
-        let old_root_key = old_root.key();
-        let new_root_key = new_root.key();
-        let sibling = new_root.child(new_root_key).unwrap_or(old_root_key);
-        self.set(old_root_key, old_root.redirect(new_root_key, sibling));
-        self.set(new_root_key,
-                 new_root.root(new_rank, old_root_key, new_value));
+        let sibling = self.value(new_root_key).child(new_root_key)
+                                              .unwrap_or(old_root_key);
+        let old_root_value = self.value(old_root_key).redirect(new_root_key,
+                                                               sibling);
+        let new_root_value = self.value(new_root_key).root(new_rank,
+                                                           old_root_key,
+                                                           new_value);
+        self.set_value(old_root_key, old_root_value);
+        self.set_value(new_root_key, new_root_value);
     }
 }
 
@@ -344,17 +350,15 @@ impl<'tcx, K> UnificationTable<K>
     where K: UnifyKey<Value = ()>
 {
     pub fn union(&mut self, a_id: K, b_id: K) {
-        let node_a = self.get(a_id);
-        let node_b = self.get(b_id);
-        let a_id = node_a.key();
-        let b_id = node_b.key();
-        if a_id != b_id {
-            self.unify(node_a, node_b, ());
+        let root_a = self.get_root_key(a_id);
+        let root_b = self.get_root_key(b_id);
+        if root_a != root_b {
+            self.unify_roots(root_a, root_b, ());
         }
     }
 
     pub fn find(&mut self, id: K) -> K {
-        self.get(id).key()
+        self.get_root_key(id)
     }
 
     pub fn unioned(&mut self, a_id: K, b_id: K) -> bool {
@@ -372,17 +376,15 @@ impl<'tcx, K, V> UnificationTable<K>
           V: Debug + Clone + PartialEq
 {
     pub fn unify_var_var(&mut self, a_id: K, b_id: K) -> Result<(), (V, V)> {
-        let node_a = self.get(a_id);
-        let node_b = self.get(b_id);
-        let a_id = node_a.key();
-        let b_id = node_b.key();
+        let root_a = self.get_root_key(a_id);
+        let root_b = self.get_root_key(b_id);
 
-        if a_id == b_id {
+        if root_a == root_b {
             return Ok(());
         }
 
         let combined = {
-            match (&node_a.value, &node_b.value) {
+            match (&self.value(root_a).value, &self.value(root_b).value) {
                 (&None, &None) => None,
                 (&Some(ref v), &None) | (&None, &Some(ref v)) => Some(v.clone()),
                 (&Some(ref v1), &Some(ref v2)) => {
@@ -394,36 +396,35 @@ impl<'tcx, K, V> UnificationTable<K>
             }
         };
 
-        Ok(self.unify(node_a, node_b, combined))
+        Ok(self.unify_roots(root_a, root_b, combined))
     }
 
     /// Sets the value of the key `a_id` to `b`. Because simple keys do not have any subtyping
     /// relationships, if `a_id` already has a value, it must be the same as `b`.
     pub fn unify_var_value(&mut self, a_id: K, b: V) -> Result<(), (V, V)> {
-        let mut node_a = self.get(a_id);
+        let root_a = self.get_root_key(a_id);
 
-        match node_a.value {
-            None => {
-                node_a.value = Some(b);
-                self.set(node_a.key(), node_a);
+        if let Some(ref a_t) = self.value(root_a).value {
+            return if *a_t == b {
                 Ok(())
-            }
-
-            Some(ref a_t) => {
-                if *a_t == b {
-                    Ok(())
-                } else {
-                    Err((a_t.clone(), b))
-                }
-            }
+            } else {
+                Err((a_t.clone(), b))
+            };
         }
+
+        let mut node_a = self.value(root_a).clone();
+        node_a.value = Some(b);
+        self.set_value(root_a, node_a);
+        Ok(())
     }
 
     pub fn has_value(&mut self, id: K) -> bool {
-        self.get(id).value.is_some()
+        let id = self.get_root_key(id);
+        self.value(id).value.is_some()
     }
 
-    pub fn probe(&mut self, a_id: K) -> Option<V> {
-        self.get(a_id).value.clone()
+    pub fn probe(&mut self, id: K) -> Option<V> {
+        let id = self.get_root_key(id);
+        self.value(id).value.clone()
     }
 }
