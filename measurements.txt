@@ -14,3 +14,8 @@ copy less
 test unify::test::big_array_bench ... bench:     744,775 ns/iter (+/- 51,865)
 test unify::test::big_array_bench ... bench:     750,939 ns/iter (+/- 146,417)
 test unify::test::big_array_bench ... bench:     754,104 ns/iter (+/- 121,968)
+
+s/set-value/update-value/
+test unify::test::big_array_bench ... bench:     731,531 ns/iter (+/- 125,685)
+test unify::test::big_array_bench ... bench:     725,162 ns/iter (+/- 99,013)
+test unify::test::big_array_bench ... bench:     735,473 ns/iter (+/- 121,156)

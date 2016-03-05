@@ -111,6 +111,16 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         }
     }
 
+    pub fn update<OP>(&mut self, index: usize, op: OP)
+        where OP: FnOnce(&mut D::Value), D::Value: Clone
+    {
+        if self.in_snapshot() {
+            let old_elem = self.values[index].clone();
+            self.undo_log.push(SetElem(index, old_elem));
+        }
+        op(&mut self.values[index]);
+    }
+
     pub fn start_snapshot(&mut self) -> Snapshot {
         let length = self.undo_log.len();
         self.undo_log.push(OpenSnapshot);

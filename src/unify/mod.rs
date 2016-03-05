@@ -85,22 +85,16 @@ impl<K: UnifyKey> VarValue<K> {
         }
     }
 
-    fn redirect(&self, to: K, sibling: K) -> VarValue<K> {
+    fn redirect(&mut self, to: K, sibling: K) {
         assert_eq!(self.parent, self.sibling); // ...since this used to be a root
-        VarValue {
-            parent: to,
-            sibling: sibling,
-            ..self.clone()
-        }
+        self.parent = to;
+        self.sibling = sibling;
     }
 
-    fn root(&self, rank: u32, child: K, value: K::Value) -> VarValue<K> {
-        VarValue {
-            rank: rank,
-            child: child,
-            value: value,
-            ..self.clone()
-        }
+    fn root(&mut self, rank: u32, child: K, value: K::Value) {
+        self.rank = rank;
+        self.child = child;
+        self.value = value;
     }
 
     /// Returns the key of this node. Only valid if this is a root
@@ -200,9 +194,7 @@ impl<K: UnifyKey> UnificationTable<K> {
         let root_key: K = self.get_root_key(redirect);
         if root_key != redirect {
             // Path compression
-            let mut value = self.value(vid).clone();
-            value.parent = root_key;
-            self.set_value(vid, value);
+            self.update_value(vid, |value| value.parent = root_key);
         }
 
         root_key
@@ -213,15 +205,11 @@ impl<K: UnifyKey> UnificationTable<K> {
         self.values.get(index).parent(key).is_none()
     }
 
-    /// Sets the value for `vid` to `new_value`. `vid` MUST be a root
-    /// node! This is an internal operation used to impl other things.
-    fn set_value(&mut self, key: K, new_value: VarValue<K>) {
-        debug_assert!(self.is_root(key));
-
-        debug!("Updating variable {:?} to {:?}", key, new_value);
-
-        let index = key.index() as usize;
-        self.values.set(index, new_value);
+    fn update_value<OP>(&mut self, key: K, op: OP)
+        where OP: FnOnce(&mut VarValue<K>)
+    {
+        self.values.update(key.index() as usize, op);
+        debug!("Updated variable {:?} to {:?}", key, self.value(key));
     }
 
     /// Either redirects `node_a` to `node_b` or vice versa, depending
@@ -260,13 +248,12 @@ impl<K: UnifyKey> UnificationTable<K> {
                      new_value: K::Value) {
         let sibling = self.value(new_root_key).child(new_root_key)
                                               .unwrap_or(old_root_key);
-        let old_root_value = self.value(old_root_key).redirect(new_root_key,
-                                                               sibling);
-        let new_root_value = self.value(new_root_key).root(new_rank,
-                                                           old_root_key,
-                                                           new_value);
-        self.set_value(old_root_key, old_root_value);
-        self.set_value(new_root_key, new_root_value);
+        self.update_value(old_root_key, |old_root_value| {
+            old_root_value.redirect(new_root_key, sibling);
+        });
+        self.update_value(new_root_key, |new_root_value| {
+            new_root_value.root(new_rank, old_root_key, new_value);
+        });
     }
 }
 
@@ -412,9 +399,7 @@ impl<'tcx, K, V> UnificationTable<K>
             };
         }
 
-        let mut node_a = self.value(root_a).clone();
-        node_a.value = Some(b);
-        self.set_value(root_a, node_a);
+        self.update_value(root_a, |node| node.value = Some(b));
         Ok(())
     }
 
