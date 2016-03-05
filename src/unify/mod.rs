@@ -210,7 +210,7 @@ impl<K: UnifyKey> UnificationTable<K> {
     /// Sets the value for `vid` to `new_value`. `vid` MUST be a root
     /// node! This is an internal operation used to impl other things.
     fn set(&mut self, key: K, new_value: VarValue<K>) {
-        assert!(self.is_root(key));
+        debug_assert!(self.is_root(key));
 
         debug!("Updating variable {:?} to {:?}", key, new_value);
 
