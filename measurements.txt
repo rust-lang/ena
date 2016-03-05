@@ -1,0 +1,12 @@
+base
+test unify::test::big_array_bench ... bench:   1,416,793 ns/iter (+/- 216,475)
+
+assert -> debug_assert
+test unify::test::big_array_bench ... bench:   1,420,368 ns/iter (+/- 144,433)
+test unify::test::big_array_bench ... bench:   1,414,448 ns/iter (+/- 219,137)
+
+don't copy for redirects
+test unify::test::big_array_bench ... bench:   1,349,796 ns/iter (+/- 233,931)
+test unify::test::big_array_bench ... bench:   1,367,082 ns/iter (+/- 301,644)
+test unify::test::big_array_bench ... bench:   1,358,154 ns/iter (+/- 348,796)
+

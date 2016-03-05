@@ -187,19 +187,22 @@ impl<K: UnifyKey> UnificationTable<K> {
     /// prefer to call `probe` below.
     fn get(&mut self, vid: K) -> VarValue<K> {
         let index = vid.index() as usize;
-        let mut value: VarValue<K> = self.values.get(index).clone();
-        match value.parent(vid) {
-            Some(redirect) => {
-                let root: VarValue<K> = self.get(redirect);
-                if root.key() != redirect {
-                    // Path compression
-                    value.parent = root.key();
-                    self.values.set(index, value);
-                }
-                root
+        let redirect = {
+            let value = self.values.get(index);
+            match value.parent(vid) {
+                None => return value.clone(),
+                Some(redirect) => redirect,
             }
-            None => value,
+        };
+
+        let root: VarValue<K> = self.get(redirect);
+        if root.key() != redirect {
+            // Path compression
+            let mut value = self.values.get(index).clone();
+            value.parent = root.key();
+            self.values.set(index, value);
         }
+        root
     }
 
     fn is_root(&self, key: K) -> bool {
