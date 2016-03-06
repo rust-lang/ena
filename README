@@ -1,2 +1,2 @@
 An implementation of union-find / congruence-closure in
-Rust. Extracted from rustc for indepdendent experimentation.
+Rust. Extracted from rustc for independent experimentation.
