@@ -121,21 +121,29 @@ impl<N: Debug, E: Debug> Graph<N, E> {
         }
     }
 
-    /// ////////////////////////////////////////////////////////////////////////
-    /// Simple accessors
+    // # Simple accessors
 
     #[inline]
-    pub fn all_nodes<'a>(&'a self) -> &'a [Node<N>] {
+    pub fn all_nodes(&self) -> &[Node<N>] {
         &self.nodes
     }
 
     #[inline]
-    pub fn all_edges<'a>(&'a self) -> &'a [Edge<E>] {
+    pub fn len_nodes(&self) -> usize {
+        self.nodes.len()
+    }
+
+    #[inline]
+    pub fn all_edges(&self) -> &[Edge<E>] {
         &self.edges
     }
 
-    /// ////////////////////////////////////////////////////////////////////////
-    /// Node construction
+    #[inline]
+    pub fn len_edges(&self) -> usize {
+        self.edges.len()
+    }
+
+    // # Node construction
 
     pub fn next_node_index(&self) -> NodeIndex {
         NodeIndex(self.nodes.len())
@@ -194,15 +202,15 @@ impl<N: Debug, E: Debug> Graph<N, E> {
         return idx;
     }
 
-    pub fn mut_edge_data<'a>(&'a mut self, idx: EdgeIndex) -> &'a mut E {
+    pub fn mut_edge_data(&mut self, idx: EdgeIndex) -> &mut E {
         &mut self.edges[idx.0].data
     }
 
-    pub fn edge_data<'a>(&'a self, idx: EdgeIndex) -> &'a E {
+    pub fn edge_data(&self, idx: EdgeIndex) -> &E {
         &self.edges[idx.0].data
     }
 
-    pub fn edge<'a>(&'a self, idx: EdgeIndex) -> &'a Edge<E> {
+    pub fn edge(&self, idx: EdgeIndex) -> &Edge<E> {
         &self.edges[idx.0]
     }
 
@@ -222,8 +230,7 @@ impl<N: Debug, E: Debug> Graph<N, E> {
         self.edges[edge.0].next_edge[dir.repr]
     }
 
-    /// ////////////////////////////////////////////////////////////////////////
-    /// Iterating over nodes, edges
+    // # Iterating over nodes, edges
 
     pub fn each_node<'a, F>(&'a self, mut f: F) -> bool
         where F: FnMut(NodeIndex, &'a Node<N>) -> bool
@@ -256,22 +263,21 @@ impl<N: Debug, E: Debug> Graph<N, E> {
         }
     }
 
-    pub fn successor_nodes<'a>(&'a self, source: NodeIndex) -> AdjacentTargets<N, E> {
+    pub fn successor_nodes(&self, source: NodeIndex) -> AdjacentTargets<N, E> {
         self.outgoing_edges(source).targets()
     }
 
-    pub fn predecessor_nodes<'a>(&'a self, target: NodeIndex) -> AdjacentSources<N, E> {
+    pub fn predecessor_nodes(&self, target: NodeIndex) -> AdjacentSources<N, E> {
         self.incoming_edges(target).sources()
     }
 
-    /// ////////////////////////////////////////////////////////////////////////
-    /// Fixed-point iteration
-    ///
-    /// A common use for graphs in our compiler is to perform
-    /// fixed-point iteration. In this case, each edge represents a
-    /// constraint, and the nodes themselves are associated with
-    /// variables or other bitsets. This method facilitates such a
-    /// computation.
+    // # Fixed-point iteration
+    //
+    // A common use for graphs in our compiler is to perform
+    // fixed-point iteration. In this case, each edge represents a
+    // constraint, and the nodes themselves are associated with
+    // variables or other bitsets. This method facilitates such a
+    // computation.
 
     pub fn iterate_until_fixed_point<'a, F>(&'a self, mut op: F)
         where F: FnMut(usize, EdgeIndex, &'a Edge<E>) -> bool
@@ -296,8 +302,7 @@ impl<N: Debug, E: Debug> Graph<N, E> {
     }
 }
 
-/// ////////////////////////////////////////////////////////////////////////
-/// Iterators
+// # Iterators
 
 pub struct AdjacentEdges<'g, N, E>
     where N: 'g,
@@ -370,9 +375,9 @@ pub struct DepthFirstTraversal<'g, N: 'g, E: 'g> {
 }
 
 impl<'g, N: Debug, E: Debug> Iterator for DepthFirstTraversal<'g, N, E> {
-    type Item = &'g N;
+    type Item = NodeIndex;
 
-    fn next(&mut self) -> Option<&'g N> {
+    fn next(&mut self) -> Option<NodeIndex> {
         while let Some(idx) = self.stack.pop() {
             if !self.visited.insert(idx.node_id()) {
                 continue;
@@ -384,7 +389,7 @@ impl<'g, N: Debug, E: Debug> Iterator for DepthFirstTraversal<'g, N, E> {
                 }
             }
 
-            return Some(self.graph.node_data(idx));
+            return Some(idx);
         }
 
         return None;
@@ -411,5 +416,13 @@ impl<E> Edge<E> {
 
     pub fn target(&self) -> NodeIndex {
         self.target
+    }
+
+    pub fn source_or_target(&self, direction: Direction) -> NodeIndex {
+        if direction == OUTGOING {
+            self.target
+        } else {
+            self.source
+        }
     }
 }

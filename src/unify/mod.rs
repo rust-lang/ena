@@ -25,7 +25,8 @@ mod tests;
 /// `IntVid`, this is `Option<IntVarValue>`, representing some
 /// (possibly not yet known) sort of integer.
 ///
-/// Implementations of this trait are at the end of this file.
+/// Clients are expected to provide implementations of this trait; you
+/// can see some examples in the `test` module.
 pub trait UnifyKey : Copy + Clone + Debug + PartialEq {
     type Value: Clone + PartialEq + Debug;
 
