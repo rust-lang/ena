@@ -158,20 +158,19 @@ impl<N: Debug, E: Debug> Graph<N, E> {
         idx
     }
 
-    pub fn mut_node_data<'a>(&'a mut self, idx: NodeIndex) -> &'a mut N {
+    pub fn mut_node_data(&mut self, idx: NodeIndex) -> &mut N {
         &mut self.nodes[idx.0].data
     }
 
-    pub fn node_data<'a>(&'a self, idx: NodeIndex) -> &'a N {
+    pub fn node_data(&self, idx: NodeIndex) -> &N {
         &self.nodes[idx.0].data
     }
 
-    pub fn node<'a>(&'a self, idx: NodeIndex) -> &'a Node<N> {
+    pub fn node(&self, idx: NodeIndex) -> &Node<N> {
         &self.nodes[idx.0]
     }
 
-    /// ////////////////////////////////////////////////////////////////////////
-    /// Edge construction and queries
+    // # Edge construction and queries
 
     pub fn next_edge_index(&self) -> EdgeIndex {
         EdgeIndex(self.edges.len())
