@@ -136,13 +136,36 @@ impl<K: Key> CongruenceClosure<K> {
     }
 
     pub fn merged(&mut self, key1: K, key2: K) -> bool {
-        // Sadly, even if `key1` and `key2` are not yet in the map,
-        // they might be unioned, because some of their successors
-        // might be in the map.
+        let opt_token1 = self.map.get(&key1).cloned();
+        let opt_token2 = self.map.get(&key2).cloned();
 
-        let token1 = self.add(key1);
-        let token2 = self.add(key2);
-        self.algorithm().unioned(token1, token2)
+        if let (Some(token1), Some(token2)) = (opt_token1, opt_token2) {
+            // Both are in the map, just check if they are unioned
+            // or not.
+            self.algorithm().unioned(token1, token2)
+        } else {
+            // Even though the one or both keys are in the map, they
+            // still may be unioned. We have to recurse to tell. For
+            // example, imagine key1 is in the map, but key2 is
+            // not. Still could be unioned, because we might have
+            // tokens for `key1=Foo(X)` and `Y` where `X==Y`, but no
+            // token for `key2=Foo(Y)`.
+            self.congruent_keys(key1, key2)
+        }
+    }
+
+    fn congruent_keys(&mut self, key1: K, key2: K) -> bool {
+        if !key1.shallow_eq(&key2) {
+            return false;
+        }
+
+        let successors1 = key1.successors();
+        let successors2 = key2.successors();
+        if successors1.len() != successors2.len() {
+            return false;
+        }
+
+        successors1.into_iter().zip(successors2).all(|(s1, s2)| self.merged(s1, s2))
     }
 
     fn new_token(&mut self, key: &K) -> (bool, Token) {
