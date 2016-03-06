@@ -280,7 +280,7 @@ impl<'a, K> UnionedKeys<'a, K>
           K::Value: 'a
 {
     fn var_value(&self, key: K) -> VarValue<K> {
-        self.table.values.get(key.index() as usize).clone()
+        self.table.value(key).clone()
     }
 }
 
