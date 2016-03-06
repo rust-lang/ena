@@ -49,7 +49,7 @@ fn union_vars() {
 }
 
 #[test]
-fn union_box_then_test_var() {
+fn union_func_then_test_var() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
     cc.merge(VAR_0, VAR_1);
     assert!(cc.merged(VAR_0, VAR_1));
