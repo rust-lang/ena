@@ -37,7 +37,10 @@ const FUNC_VAR_2: Type<'static> = &Func(VAR_2);
 fn simple_as_it_gets() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
     assert!(cc.merged(VAR_0, VAR_0));
+    assert!(!cc.merged(VAR_0, VAR_1));
     assert!(cc.merged(VAR_1, VAR_1));
+    assert!(cc.merged(FUNC_VAR_0, FUNC_VAR_0));
+    assert!(!cc.merged(FUNC_VAR_0, FUNC_VAR_1));
     assert!(cc.merged(FUNC_VAR_1, FUNC_VAR_1));
 }
 
