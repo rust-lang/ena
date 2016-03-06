@@ -137,7 +137,7 @@ fn merged_no_add_indirect() {
 // Here we determine that `Func(V0) == Func(V2)` because `V0==V1==V2`,
 // but we never add nodes for `Func(_)`.
 #[test]
-fn box_not_merged() {
+fn func_not_merged() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
 
     cc.merge(FUNC_VAR_0, FUNC_VAR_1);
