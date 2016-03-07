@@ -1,6 +1,5 @@
 use graph::{Graph, NodeIndex};
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::fmt::Debug;
 use std::hash::Hash;
 use unify::{UnifyKey, UnificationTable};
@@ -15,11 +14,20 @@ pub struct CongruenceClosure<K: Hash + Eq> {
 }
 
 pub trait Key : Hash + Eq + Clone + Debug {
+    // If this Key has some efficient way of converting itself into a
+    // congruence closure `Token`, then it shold return `Some(token)`.
+    // Otherwise, return `None`, in which case the CC will internally
+    // map the key to a token. Typically, this is used by layers that
+    // wrap the CC, where inference variables are mapped directly to
+    // particular tokens.
+    fn to_token(&self) -> Option<Token> {
+        None
+    }
     fn shallow_eq(&self, key: &Self) -> bool;
     fn successors(&self) -> Vec<Self>;
 }
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Token {
     // this is the index both for the graph and the unification table,
     // since for every node there is also a slot in the unification
@@ -64,10 +72,37 @@ impl<K: Key> CongruenceClosure<K> {
         }
     }
 
+    /// Manually create a new CC token. You don't normally need to do
+    /// this, as CC tokens are automatically created for each key when
+    /// we first observe it. However, if you wish to have keys that
+    /// make use of the `to_token` method to bypass the `key -> token`
+    /// map, then you can use this function to make a new-token.  The
+    /// callback `key_op` will be invoked to create the key for the
+    /// fresh token (typically, it will wrap the token in some kind of
+    /// enum indicating an inference variable).
+    ///
+    /// **WARNING:** The new key **must** be a leaf (no successor
+    /// keys) or else things will not work right. This invariant is
+    /// not currently checked.
+    pub fn new_token<OP>(&mut self, key_op: OP) -> Token
+        where OP: FnOnce(Token) -> K
+    {
+        let token = self.table.new_key(());
+        let key = key_op(token);
+        let node = self.graph.add_node(key);
+        assert_eq!(token.node(), node);
+        token
+    }
+
+    /// Return the key for a given token
+    pub fn key(&self, token: Token) -> &K {
+        self.graph.node_data(token.node())
+    }
+
     pub fn add(&mut self, key: K) -> Token {
         debug!("add(): key={:?}", key);
 
-        let (is_new, token) = self.new_token(&key);
+        let (is_new, token) = self.get_or_add(&key);
         debug!("add: key={:?} is_new={:?} token={:?}", key, is_new, token);
 
         // if this node is already in the graph, we are done
@@ -151,17 +186,22 @@ impl<K: Key> CongruenceClosure<K> {
         self.algorithm().unioned(token1, token2)
     }
 
-    fn new_token(&mut self, key: &K) -> (bool, Token) {
-        match self.map.entry(key.clone()) {
-            Entry::Occupied(slot) => (false, slot.get().clone()),
-            Entry::Vacant(slot) => {
-                let token = self.table.new_key(());
-                let node = self.graph.add_node(key.clone());
-                assert_eq!(token.node(), node);
-                slot.insert(token);
-                (true, token)
-            }
+    /// Gets the token for a key, if any.
+    fn get(&self, key: &K) -> Option<Token> {
+        key.to_token()
+           .or_else(|| self.map.get(key).cloned())
+    }
+
+    /// Gets the token for a key, adding one if none exists. Returns the token
+    /// and a boolean indicating whether it had to be added.
+    fn get_or_add(&mut self, key: &K) -> (bool, Token) {
+        if let Some(token) = self.get(key) {
+            return (false, token);
         }
+
+        let token = self.new_token(|_| key.clone());
+        self.map.insert(key.clone(), token);
+        (true, token)
     }
 
     fn algorithm(&mut self) -> Algorithm<K> {

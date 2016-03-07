@@ -1,15 +1,23 @@
-use cc::{CongruenceClosure, Key};
+use cc::{CongruenceClosure, Key, Token};
 use self::TypeStruct::*;
 
-#[derive(Copy,Clone,Debug,PartialEq,Eq,Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum TypeStruct<'tcx> {
     Func(Type<'tcx>),
     Struct(u32),
+    Variable(Token),
 }
 
 type Type<'tcx> = &'tcx TypeStruct<'tcx>;
 
 impl<'tcx> Key for Type<'tcx> {
+    fn to_token(&self) -> Option<Token> {
+        match *self {
+            &TypeStruct::Func(_) | &TypeStruct::Struct(_) => None,
+            &TypeStruct::Variable(t) => Some(t),
+        }
+    }
+
     fn shallow_eq(&self, key: &Type<'tcx>) -> bool {
         match (*self, *key) {
             (&Func(_), &Func(_)) => true,
@@ -22,6 +30,7 @@ impl<'tcx> Key for Type<'tcx> {
         match *self {
             &Func(t) => vec![t],
             &Struct(_) => vec![],
+            &Variable(_) => vec![],
         }
     }
 }
@@ -32,6 +41,16 @@ const STRUCT_1: Type<'static> = &Struct(1);
 const FUNC_STRUCT_1: Type<'static> = &Func(STRUCT_1);
 const STRUCT_2: Type<'static> = &Struct(2);
 const FUNC_STRUCT_2: Type<'static> = &Func(STRUCT_2);
+
+fn inference_var<'tcx>(cc: &mut CongruenceClosure<Type<'tcx>>,
+                       storage: &'tcx mut Option<TypeStruct<'tcx>>)
+                       -> Type<'tcx> {
+    let token = cc.new_token(move |token| {
+        *storage = Some(TypeStruct::Variable(token));
+        storage.as_ref().unwrap()
+    });
+    *cc.key(token)
+}
 
 #[test]
 fn simple_as_it_gets() {
