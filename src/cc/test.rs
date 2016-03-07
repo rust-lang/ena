@@ -4,7 +4,7 @@ use self::TypeStruct::*;
 #[derive(Copy,Clone,Debug,PartialEq,Eq,Hash)]
 enum TypeStruct<'tcx> {
     Func(Type<'tcx>),
-    Variable(u32),
+    Struct(u32),
 }
 
 type Type<'tcx> = &'tcx TypeStruct<'tcx>;
@@ -13,7 +13,7 @@ impl<'tcx> Key for Type<'tcx> {
     fn shallow_eq(&self, key: &Type<'tcx>) -> bool {
         match (*self, *key) {
             (&Func(_), &Func(_)) => true,
-            (&Variable(i), &Variable(j)) => i == j,
+            (&Struct(i), &Struct(j)) => i == j,
             _ => false,
         }
     }
@@ -21,54 +21,54 @@ impl<'tcx> Key for Type<'tcx> {
     fn successors(&self) -> Vec<Self> {
         match *self {
             &Func(t) => vec![t],
-            &Variable(_) => vec![],
+            &Struct(_) => vec![],
         }
     }
 }
 
-const VAR_0: Type<'static> = &Variable(0);
-const FUNC_VAR_0: Type<'static> = &Func(VAR_0);
-const VAR_1: Type<'static> = &Variable(1);
-const FUNC_VAR_1: Type<'static> = &Func(VAR_1);
-const VAR_2: Type<'static> = &Variable(2);
-const FUNC_VAR_2: Type<'static> = &Func(VAR_2);
+const STRUCT_0: Type<'static> = &Struct(0);
+const FUNC_STRUCT_0: Type<'static> = &Func(STRUCT_0);
+const STRUCT_1: Type<'static> = &Struct(1);
+const FUNC_STRUCT_1: Type<'static> = &Func(STRUCT_1);
+const STRUCT_2: Type<'static> = &Struct(2);
+const FUNC_STRUCT_2: Type<'static> = &Func(STRUCT_2);
 
 #[test]
 fn simple_as_it_gets() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    assert!(cc.merged(VAR_0, VAR_0));
-    assert!(!cc.merged(VAR_0, VAR_1));
-    assert!(cc.merged(VAR_1, VAR_1));
-    assert!(cc.merged(FUNC_VAR_0, FUNC_VAR_0));
-    assert!(!cc.merged(FUNC_VAR_0, FUNC_VAR_1));
-    assert!(cc.merged(FUNC_VAR_1, FUNC_VAR_1));
+    assert!(cc.merged(STRUCT_0, STRUCT_0));
+    assert!(!cc.merged(STRUCT_0, STRUCT_1));
+    assert!(cc.merged(STRUCT_1, STRUCT_1));
+    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_0));
+    assert!(!cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
+    assert!(cc.merged(FUNC_STRUCT_1, FUNC_STRUCT_1));
 }
 
 #[test]
 fn union_vars() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    cc.merge(VAR_0, VAR_1);
-    assert!(cc.merged(VAR_0, VAR_1));
+    cc.merge(STRUCT_0, STRUCT_1);
+    assert!(cc.merged(STRUCT_0, STRUCT_1));
 }
 
 #[test]
 fn union_func_then_test_var() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    cc.merge(VAR_0, VAR_1);
-    assert!(cc.merged(VAR_0, VAR_1));
+    cc.merge(STRUCT_0, STRUCT_1);
+    assert!(cc.merged(STRUCT_0, STRUCT_1));
 }
 
 #[test]
 fn union_direct() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
 
-    cc.add(FUNC_VAR_0);
-    cc.add(FUNC_VAR_1);
-    cc.add(VAR_0);
-    cc.add(VAR_1);
+    cc.add(FUNC_STRUCT_0);
+    cc.add(FUNC_STRUCT_1);
+    cc.add(STRUCT_0);
+    cc.add(STRUCT_1);
 
-    cc.merge(VAR_0, VAR_1);
-    assert!(cc.merged(FUNC_VAR_0, FUNC_VAR_1));
+    cc.merge(STRUCT_0, STRUCT_1);
+    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
 }
 
 macro_rules! indirect_test {
@@ -81,15 +81,15 @@ macro_rules! indirect_test {
             {
                 let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
 
-                cc.add(FUNC_VAR_0);
-                cc.add(FUNC_VAR_2);
-                cc.add(VAR_0);
-                cc.add(VAR_1);
-                cc.add(VAR_2);
+                cc.add(FUNC_STRUCT_0);
+                cc.add(FUNC_STRUCT_2);
+                cc.add(STRUCT_0);
+                cc.add(STRUCT_1);
+                cc.add(STRUCT_2);
 
                 cc.merge($a, $b);
                 cc.merge($c, $d);
-                assert!(cc.merged(FUNC_VAR_0, FUNC_VAR_2));
+                assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
             }
 
             // Variant 2: never call `add` explicitly
@@ -99,7 +99,7 @@ macro_rules! indirect_test {
                 let mut cc2: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
                 cc2.merge($a, $b);
                 cc2.merge($c, $d);
-                assert!(cc2.merged(FUNC_VAR_0, FUNC_VAR_2));
+                assert!(cc2.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
             }
         }
     }
@@ -109,10 +109,10 @@ macro_rules! indirect_test {
 // we merged V1 and V2, and we want to use this to conclude that
 // Func(V0) and Func(V2) are merged -- but there is no node created for
 // Func(V1).
-indirect_test! { indirect_test_1: VAR_1, VAR_2; VAR_1, VAR_0 }
-indirect_test! { indirect_test_2: VAR_2, VAR_1; VAR_1, VAR_0 }
-indirect_test! { indirect_test_3: VAR_1, VAR_2; VAR_0, VAR_1 }
-indirect_test! { indirect_test_4: VAR_2, VAR_1; VAR_0, VAR_1 }
+indirect_test! { indirect_test_1: STRUCT_1, STRUCT_2; STRUCT_1, STRUCT_0 }
+indirect_test! { indirect_test_2: STRUCT_2, STRUCT_1; STRUCT_1, STRUCT_0 }
+indirect_test! { indirect_test_3: STRUCT_1, STRUCT_2; STRUCT_0, STRUCT_1 }
+indirect_test! { indirect_test_4: STRUCT_2, STRUCT_1; STRUCT_0, STRUCT_1 }
 
 // Here we determine that `Func(V0) == Func(V1)` because `V0==V1`,
 // but we never add nodes for `Func(_)`.
@@ -120,9 +120,9 @@ indirect_test! { indirect_test_4: VAR_2, VAR_1; VAR_0, VAR_1 }
 fn merged_no_add() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
 
-    cc.merge(VAR_0, VAR_1);
+    cc.merge(STRUCT_0, STRUCT_1);
 
-    assert!(cc.merged(FUNC_VAR_0, FUNC_VAR_1));
+    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
 }
 
 // Here we determine that `Func(V0) == Func(V2)` because `V0==V1==V2`,
@@ -131,10 +131,10 @@ fn merged_no_add() {
 fn merged_no_add_indirect() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
 
-    cc.merge(VAR_0, VAR_1);
-    cc.merge(VAR_1, VAR_2);
+    cc.merge(STRUCT_0, STRUCT_1);
+    cc.merge(STRUCT_1, STRUCT_2);
 
-    assert!(cc.merged(FUNC_VAR_0, FUNC_VAR_2));
+    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
 }
 
 // Here we determine that `Func(V0) == Func(V2)` because `V0==V1==V2`,
@@ -143,10 +143,10 @@ fn merged_no_add_indirect() {
 fn func_not_merged() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
 
-    cc.merge(FUNC_VAR_0, FUNC_VAR_1);
+    cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_1);
 
-    assert!(!cc.merged(VAR_0, VAR_1));
-    assert!(cc.merged(FUNC_VAR_0, FUNC_VAR_1));
+    assert!(!cc.merged(STRUCT_0, STRUCT_1));
+    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
 }
 
 // Here we show that merging `Func(V1) == Func(V2)` does NOT imply that
@@ -155,8 +155,8 @@ fn func_not_merged() {
 fn merge_fns_not_inputs() {
     let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
 
-    cc.merge(FUNC_VAR_0, FUNC_VAR_1);
+    cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_1);
 
-    assert!(!cc.merged(VAR_0, VAR_1));
-    assert!(cc.merged(FUNC_VAR_0, FUNC_VAR_1));
+    assert!(!cc.merged(STRUCT_0, STRUCT_1));
+    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
 }
