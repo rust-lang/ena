@@ -160,3 +160,61 @@ fn merge_fns_not_inputs() {
     assert!(!cc.merged(STRUCT_0, STRUCT_1));
     assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
 }
+
+#[test]
+fn inf_var_union() {
+    // These variables serve as a kind of arena. They have be declared
+    // in a tuple like this for the temporary lifetimes to work out.
+    let (mut v0, mut v1, mut v2, func_v0, func_v1, func_v2);
+
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
+
+    v0 = None;
+    v1 = None;
+    v2 = None;
+    let v0 = inference_var(&mut cc, &mut v0);
+    let v1 = inference_var(&mut cc, &mut v1);
+    let v2 = inference_var(&mut cc, &mut v2);
+    func_v0 = TypeStruct::Func(v0);
+    func_v1 = TypeStruct::Func(v1);
+    func_v2 = TypeStruct::Func(v2);
+
+    cc.merge(v0, v1);
+
+    assert!(cc.map.is_empty()); // inf variables don't take up map slots
+
+    assert!(cc.merged(&func_v0, &func_v1));
+    assert!(!cc.merged(&func_v0, &func_v2));
+
+    cc.merge(&func_v0, &func_v2);
+    assert!(cc.merged(&func_v0, &func_v2));
+    assert!(cc.merged(&func_v1, &func_v2));
+
+    assert_eq!(cc.map.len(), 3); // each func needs an entry
+}
+
+
+#[test]
+fn struct_union_no_add() {
+
+    // This particular pattern of unifications exploits a potentially
+    // subtle bug:
+    // - We merge `STRUCT_0` and `STRUCT_1`
+    //   and then merge `FUNC(STRUCT_0)` and `FUNC(STRUCT_2)`.
+    // - From this we should be able to deduce that `FUNC(STRUCT_1) == FUNC(STRUCT_2)`.
+    // - However, if we are not careful with accounting for
+    //   predecessors and so forth, this fails. For example, when
+    //   adding `FUNC(STRUCT_1)`, we have to consider `FUNC(STRUCT_0)`
+    //   to be a predecessor of `STRUCT_1`.
+
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
+
+    cc.merge(STRUCT_0, STRUCT_1);
+    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
+    assert!(!cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
+
+    cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_2);
+    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
+    assert!(cc.merged(FUNC_STRUCT_1, FUNC_STRUCT_2));
+}
+

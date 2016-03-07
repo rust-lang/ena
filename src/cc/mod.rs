@@ -97,7 +97,7 @@ impl<K: Key> CongruenceClosure<K> {
         for successor in successors {
             // get set of predecessors for each successor BEFORE we add the new node;
             // this would be `Box<Bar>` in the above example.
-            let predecessors: Vec<_> = self.graph.predecessor_nodes(token.node()).collect();
+            let predecessors: Vec<_> = self.algorithm().all_preds(successor);
 
             debug!("add: key={:?} successor={:?} predecessors={:?}",
                    key,
@@ -122,7 +122,7 @@ impl<K: Key> CongruenceClosure<K> {
             // In this case, the predecessor would be `(A, B)`; but we don't
             // know that `B == B1`, so we can't merge that with `(A1, B1)`.
             for predecessor in predecessors {
-                self.algorithm().maybe_merge(token, Token::from_node(predecessor));
+                self.algorithm().maybe_merge(token, predecessor);
             }
         }
 
@@ -136,36 +136,19 @@ impl<K: Key> CongruenceClosure<K> {
     }
 
     pub fn merged(&mut self, key1: K, key2: K) -> bool {
-        let opt_token1 = self.map.get(&key1).cloned();
-        let opt_token2 = self.map.get(&key2).cloned();
+        // Careful: you cannot naively remove the `add` calls
+        // here. The reason is because of patterns like the test
+        // `struct_union_no_add`. If we unify X and Y, and then unify
+        // F(X) and F(Z), we need to be sure to figure out that F(Y)
+        // == F(Z). This requires a non-trivial deduction step, so
+        // just checking if the arguments are congruent will fail,
+        // because `Y == Z` does not hold.
 
-        if let (Some(token1), Some(token2)) = (opt_token1, opt_token2) {
-            // Both are in the map, just check if they are unioned
-            // or not.
-            self.algorithm().unioned(token1, token2)
-        } else {
-            // Even though the one or both keys are in the map, they
-            // still may be unioned. We have to recurse to tell. For
-            // example, imagine key1 is in the map, but key2 is
-            // not. Still could be unioned, because we might have
-            // tokens for `key1=Foo(X)` and `Y` where `X==Y`, but no
-            // token for `key2=Foo(Y)`.
-            self.congruent_keys(key1, key2)
-        }
-    }
+        debug!("merged: called({:?}, {:?})", key1, key2);
 
-    fn congruent_keys(&mut self, key1: K, key2: K) -> bool {
-        if !key1.shallow_eq(&key2) {
-            return false;
-        }
-
-        let successors1 = key1.successors();
-        let successors2 = key2.successors();
-        if successors1.len() != successors2.len() {
-            return false;
-        }
-
-        successors1.into_iter().zip(successors2).all(|(s1, s2)| self.merged(s1, s2))
+        let token1 = self.add(key1);
+        let token2 = self.add(key2);
+        self.algorithm().unioned(token1, token2)
     }
 
     fn new_token(&mut self, key: &K) -> (bool, Token) {
