@@ -1,3 +1,7 @@
+//! An implementation of the Congruence Closure algorithm based on the
+//! paper "Fast Decision Procedures Based on Congruence Closure" by Nelson
+//! and Oppen, JACM 1980.
+
 use graph::{Graph, NodeIndex};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -99,7 +103,34 @@ impl<K: Key> CongruenceClosure<K> {
         self.graph.node_data(token.node())
     }
 
-    pub fn add(&mut self, key: K) -> Token {
+    /// Indicates they `key1` and `key2` are equivalent.
+    pub fn merge(&mut self, key1: K, key2: K) {
+        let token1 = self.add(key1);
+        let token2 = self.add(key2);
+        self.algorithm().merge(token1, token2);
+    }
+
+    /// Indicates whether `key1` and `key2` are equivalent.
+    pub fn merged(&mut self, key1: K, key2: K) -> bool {
+        // Careful: you cannot naively remove the `add` calls
+        // here. The reason is because of patterns like the test
+        // `struct_union_no_add`. If we unify X and Y, and then unify
+        // F(X) and F(Z), we need to be sure to figure out that F(Y)
+        // == F(Z). This requires a non-trivial deduction step, so
+        // just checking if the arguments are congruent will fail,
+        // because `Y == Z` does not hold.
+
+        debug!("merged: called({:?}, {:?})", key1, key2);
+
+        let token1 = self.add(key1);
+        let token2 = self.add(key2);
+        self.algorithm().unioned(token1, token2)
+    }
+
+    /// Add a key into the CC table, returning the corresponding
+    /// token. This is not part of the public API, though it could be
+    /// if we wanted.
+    fn add(&mut self, key: K) -> Token {
         debug!("add(): key={:?}", key);
 
         let (is_new, token) = self.get_or_add(&key);
@@ -162,28 +193,6 @@ impl<K: Key> CongruenceClosure<K> {
         }
 
         token
-    }
-
-    pub fn merge(&mut self, key1: K, key2: K) {
-        let token1 = self.add(key1);
-        let token2 = self.add(key2);
-        self.algorithm().merge(token1, token2);
-    }
-
-    pub fn merged(&mut self, key1: K, key2: K) -> bool {
-        // Careful: you cannot naively remove the `add` calls
-        // here. The reason is because of patterns like the test
-        // `struct_union_no_add`. If we unify X and Y, and then unify
-        // F(X) and F(Z), we need to be sure to figure out that F(Y)
-        // == F(Z). This requires a non-trivial deduction step, so
-        // just checking if the arguments are congruent will fail,
-        // because `Y == Z` does not hold.
-
-        debug!("merged: called({:?}, {:?})", key1, key2);
-
-        let token1 = self.add(key1);
-        let token2 = self.add(key2);
-        self.algorithm().unioned(token1, token2)
     }
 
     /// Gets the token for a key, if any.
