@@ -212,7 +212,6 @@ fn inf_var_union() {
     assert_eq!(cc.map.len(), 3); // each func needs an entry
 }
 
-
 #[test]
 fn struct_union_no_add() {
 
@@ -235,5 +234,25 @@ fn struct_union_no_add() {
     cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_2);
     assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
     assert!(cc.merged(FUNC_STRUCT_1, FUNC_STRUCT_2));
+}
+
+#[test]
+fn merged_keys() {
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
+
+    cc.merge(STRUCT_0, STRUCT_1);
+    cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_2);
+
+    // Here we don't yet see `FUNC_STRUCT_1` because it has no
+    // corresponding node:
+    let keys: Vec<Type> = cc.merged_keys(FUNC_STRUCT_2).collect();
+    assert_eq!(&keys[..], &[FUNC_STRUCT_2, FUNC_STRUCT_0]);
+
+    // But of course `merged` returns true (and adds a node):
+    assert!(cc.merged(FUNC_STRUCT_1, FUNC_STRUCT_2));
+
+    // So now we see it:
+    let keys: Vec<Type> = cc.merged_keys(FUNC_STRUCT_2).collect();
+    assert_eq!(&keys[..], &[FUNC_STRUCT_2, FUNC_STRUCT_1, FUNC_STRUCT_0]);
 }
 

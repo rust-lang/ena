@@ -6,7 +6,7 @@ use graph::{Graph, NodeIndex};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
-use unify::{UnifyKey, UnificationTable};
+use unify::{UnifyKey, UnificationTable, UnionedKeys};
 
 #[cfg(test)]
 mod test;
@@ -127,6 +127,19 @@ impl<K: Key> CongruenceClosure<K> {
         self.algorithm().unioned(token1, token2)
     }
 
+    /// Returns an iterator over all keys that are known to have been
+    /// merged with `key`. This is a bit dubious, since the set of
+    /// merged keys will be dependent on what has been added, and is
+    /// not the full set of equivalencies that one might imagine. See the
+    /// test `merged_keys` for an example.
+    pub fn merged_keys(&mut self, key: K) -> MergedKeys<K> {
+        let token = self.add(key);
+        MergedKeys {
+            graph: &self.graph,
+            iterator: self.table.unioned_keys(token),
+        }
+    }
+
     /// Add a key into the CC table, returning the corresponding
     /// token. This is not part of the public API, though it could be
     /// if we wanted.
@@ -220,6 +233,25 @@ impl<K: Key> CongruenceClosure<K> {
         }
     }
 }
+
+// # Walking merged keys
+
+pub struct MergedKeys<'cc, K: Key + 'cc> {
+    graph: &'cc Graph<K, ()>,
+    iterator: UnionedKeys<'cc, Token>,
+}
+
+impl<'cc, K: Key> Iterator for MergedKeys<'cc, K> {
+    type Item = K;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator
+            .next()
+            .map(|token| self.graph.node_data(token.node()).clone())
+    }
+}
+
+// # The core algorithm
 
 struct Algorithm<'a, K: 'a> {
     graph: &'a Graph<K, ()>,
