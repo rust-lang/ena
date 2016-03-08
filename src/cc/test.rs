@@ -2,24 +2,24 @@ use cc::{CongruenceClosure, Key, Token};
 use self::TypeStruct::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum TypeStruct<'tcx> {
-    Func(Type<'tcx>),
+enum TypeStruct {
+    Func(Type),
     Struct(u32),
     Variable(Token),
 }
 
-type Type<'tcx> = &'tcx TypeStruct<'tcx>;
+type Type = Box<TypeStruct>;
 
-impl<'tcx> Key for Type<'tcx> {
+impl Key for Type {
     fn to_token(&self) -> Option<Token> {
-        match *self {
-            &TypeStruct::Func(_) | &TypeStruct::Struct(_) => None,
-            &TypeStruct::Variable(t) => Some(t),
+        match **self {
+            TypeStruct::Func(_) | TypeStruct::Struct(_) => None,
+            TypeStruct::Variable(t) => Some(t),
         }
     }
 
-    fn shallow_eq(&self, key: &Type<'tcx>) -> bool {
-        match (*self, *key) {
+    fn shallow_eq(&self, key: &Type) -> bool {
+        match (&**self, &**key) {
             (&Func(_), &Func(_)) => true,
             (&Struct(i), &Struct(j)) => i == j,
             _ => false,
@@ -27,67 +27,87 @@ impl<'tcx> Key for Type<'tcx> {
     }
 
     fn successors(&self) -> Vec<Self> {
-        match *self {
-            &Func(t) => vec![t],
-            &Struct(_) => vec![],
-            &Variable(_) => vec![],
+        match **self {
+            Func(ref t) => vec![t.clone()],
+            Struct(_) => vec![],
+            Variable(_) => vec![],
         }
     }
 }
 
-const STRUCT_0: Type<'static> = &Struct(0);
-const FUNC_STRUCT_0: Type<'static> = &Func(STRUCT_0);
-const STRUCT_1: Type<'static> = &Struct(1);
-const FUNC_STRUCT_1: Type<'static> = &Func(STRUCT_1);
-const STRUCT_2: Type<'static> = &Struct(2);
-const FUNC_STRUCT_2: Type<'static> = &Func(STRUCT_2);
+struct Types;
 
-fn inference_var<'tcx>(cc: &mut CongruenceClosure<Type<'tcx>>,
-                       storage: &'tcx mut Option<TypeStruct<'tcx>>)
-                       -> Type<'tcx> {
-    let token = cc.new_token(move |token| {
-        *storage = Some(TypeStruct::Variable(token));
-        storage.as_ref().unwrap()
-    });
-    *cc.key(token)
+impl Types {
+    pub fn struct0() -> Type {
+        Box::new(Struct(0))
+    }
+
+    pub fn struct1() -> Type {
+        Box::new(Struct(1))
+    }
+
+    pub fn struct2() -> Type {
+        Box::new(Struct(2))
+    }
+
+    pub fn func(t: Type) -> Type {
+        Box::new(Func(t))
+    }
+
+    pub fn func_struct0() -> Type {
+        Box::new(Func(Types::struct0()))
+    }
+
+    pub fn func_struct1() -> Type {
+        Box::new(Func(Types::struct1()))
+    }
+
+    pub fn func_struct2() -> Type {
+        Box::new(Func(Types::struct2()))
+    }
+}
+
+fn inference_var<'tcx>(cc: &mut CongruenceClosure<Type>) -> Type {
+    let token = cc.new_token(move |token| Box::new(TypeStruct::Variable(token)));
+    cc.key(token).clone()
 }
 
 #[test]
 fn simple_as_it_gets() {
-    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    assert!(cc.merged(STRUCT_0, STRUCT_0));
-    assert!(!cc.merged(STRUCT_0, STRUCT_1));
-    assert!(cc.merged(STRUCT_1, STRUCT_1));
-    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_0));
-    assert!(!cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
-    assert!(cc.merged(FUNC_STRUCT_1, FUNC_STRUCT_1));
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
+    assert!(cc.merged(Types::struct0(), Types::struct0()));
+    assert!(!cc.merged(Types::struct0(), Types::struct1()));
+    assert!(cc.merged(Types::struct1(), Types::struct1()));
+    assert!(cc.merged(Types::func_struct0(), Types::func_struct0()));
+    assert!(!cc.merged(Types::func_struct0(), Types::func_struct1()));
+    assert!(cc.merged(Types::func_struct1(), Types::func_struct1()));
 }
 
 #[test]
 fn union_vars() {
-    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    cc.merge(STRUCT_0, STRUCT_1);
-    assert!(cc.merged(STRUCT_0, STRUCT_1));
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
+    cc.merge(Types::struct0(), Types::struct1());
+    assert!(cc.merged(Types::struct0(), Types::struct1()));
 }
 
 #[test]
 fn union_func_then_test_var() {
-    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
-    cc.merge(STRUCT_0, STRUCT_1);
-    assert!(cc.merged(STRUCT_0, STRUCT_1));
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
+    cc.merge(Types::struct0(), Types::struct1());
+    assert!(cc.merged(Types::struct0(), Types::struct1()));
 }
 
 #[test]
 fn union_direct() {
-    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    cc.add(FUNC_STRUCT_0);
-    cc.add(FUNC_STRUCT_1);
-    cc.add(STRUCT_0);
-    cc.add(STRUCT_1);
+    cc.add(Types::func_struct0());
+    cc.add(Types::func_struct1());
+    cc.add(Types::struct0());
+    cc.add(Types::struct1());
 
-    cc.merge(STRUCT_0, STRUCT_1);
-    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
+    cc.merge(Types::struct0(), Types::struct1());
+    assert!(cc.merged(Types::func_struct0(), Types::func_struct1()));
 }
 
 macro_rules! indirect_test {
@@ -98,27 +118,27 @@ macro_rules! indirect_test {
             //
             // This caused bugs because nodes were pre-existing.
             {
-                let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+                let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-                cc.add(FUNC_STRUCT_0);
-                cc.add(FUNC_STRUCT_2);
-                cc.add(STRUCT_0);
-                cc.add(STRUCT_1);
-                cc.add(STRUCT_2);
+                cc.add(Types::func_struct0());
+                cc.add(Types::func_struct2());
+                cc.add(Types::struct0());
+                cc.add(Types::struct1());
+                cc.add(Types::struct2());
 
                 cc.merge($a, $b);
                 cc.merge($c, $d);
-                assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
+                assert!(cc.merged(Types::func_struct0(), Types::func_struct2()));
             }
 
             // Variant 2: never call `add` explicitly
             //
             // This is more how we expect library to be used in practice.
             {
-                let mut cc2: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+                let mut cc2: CongruenceClosure<Type> = CongruenceClosure::new();
                 cc2.merge($a, $b);
                 cc2.merge($c, $d);
-                assert!(cc2.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
+                assert!(cc2.merged(Types::func_struct0(), Types::func_struct2()));
             }
         }
     }
@@ -128,86 +148,79 @@ macro_rules! indirect_test {
 // we merged V1 and V2, and we want to use this to conclude that
 // Func(V0) and Func(V2) are merged -- but there is no node created for
 // Func(V1).
-indirect_test! { indirect_test_1: STRUCT_1, STRUCT_2; STRUCT_1, STRUCT_0 }
-indirect_test! { indirect_test_2: STRUCT_2, STRUCT_1; STRUCT_1, STRUCT_0 }
-indirect_test! { indirect_test_3: STRUCT_1, STRUCT_2; STRUCT_0, STRUCT_1 }
-indirect_test! { indirect_test_4: STRUCT_2, STRUCT_1; STRUCT_0, STRUCT_1 }
+indirect_test! { indirect_test_1: Types::struct1(), Types::struct2(); Types::struct1(), Types::struct0() }
+indirect_test! { indirect_test_2: Types::struct2(), Types::struct1(); Types::struct1(), Types::struct0() }
+indirect_test! { indirect_test_3: Types::struct1(), Types::struct2(); Types::struct0(), Types::struct1() }
+indirect_test! { indirect_test_4: Types::struct2(), Types::struct1(); Types::struct0(), Types::struct1() }
 
 // Here we determine that `Func(V0) == Func(V1)` because `V0==V1`,
 // but we never add nodes for `Func(_)`.
 #[test]
 fn merged_no_add() {
-    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    cc.merge(STRUCT_0, STRUCT_1);
+    cc.merge(Types::struct0(), Types::struct1());
 
-    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
+    assert!(cc.merged(Types::func_struct0(), Types::func_struct1()));
 }
 
 // Here we determine that `Func(V0) == Func(V2)` because `V0==V1==V2`,
 // but we never add nodes for `Func(_)`.
 #[test]
 fn merged_no_add_indirect() {
-    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    cc.merge(STRUCT_0, STRUCT_1);
-    cc.merge(STRUCT_1, STRUCT_2);
+    cc.merge(Types::struct0(), Types::struct1());
+    cc.merge(Types::struct1(), Types::struct2());
 
-    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
+    assert!(cc.merged(Types::func_struct0(), Types::func_struct2()));
 }
 
 // Here we determine that `Func(V0) == Func(V2)` because `V0==V1==V2`,
 // but we never add nodes for `Func(_)`.
 #[test]
 fn func_not_merged() {
-    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_1);
+    cc.merge(Types::func_struct0(), Types::func_struct1());
 
-    assert!(!cc.merged(STRUCT_0, STRUCT_1));
-    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
+    assert!(!cc.merged(Types::struct0(), Types::struct1()));
+    assert!(cc.merged(Types::func_struct0(), Types::func_struct1()));
 }
 
 // Here we show that merging `Func(V1) == Func(V2)` does NOT imply that
 // `V1 == V2`.
 #[test]
 fn merge_fns_not_inputs() {
-    let mut cc: CongruenceClosure<Type<'static>> = CongruenceClosure::new();
+    let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_1);
+    cc.merge(Types::func_struct0(), Types::func_struct1());
 
-    assert!(!cc.merged(STRUCT_0, STRUCT_1));
-    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
+    assert!(!cc.merged(Types::struct0(), Types::struct1()));
+    assert!(cc.merged(Types::func_struct0(), Types::func_struct1()));
 }
 
 #[test]
 fn inf_var_union() {
-    // These variables serve as a kind of arena. They have be declared
-    // in a tuple like this for the temporary lifetimes to work out.
-    let (mut v0, mut v1, mut v2, func_v0, func_v1, func_v2);
-
     let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    v0 = None;
-    v1 = None;
-    v2 = None;
-    let v0 = inference_var(&mut cc, &mut v0);
-    let v1 = inference_var(&mut cc, &mut v1);
-    let v2 = inference_var(&mut cc, &mut v2);
-    func_v0 = TypeStruct::Func(v0);
-    func_v1 = TypeStruct::Func(v1);
-    func_v2 = TypeStruct::Func(v2);
+    let v0 = inference_var(&mut cc);
+    let v1 = inference_var(&mut cc);
+    let v2 = inference_var(&mut cc);
+    let func_v0 = Types::func(v0.clone());
+    let func_v1 = Types::func(v1.clone());
+    let func_v2 = Types::func(v2.clone());
 
-    cc.merge(v0, v1);
+    cc.merge(v0.clone(), v1.clone());
 
     assert!(cc.map.is_empty()); // inf variables don't take up map slots
 
-    assert!(cc.merged(&func_v0, &func_v1));
-    assert!(!cc.merged(&func_v0, &func_v2));
+    assert!(cc.merged(func_v0.clone(), func_v1.clone()));
+    assert!(!cc.merged(func_v0.clone(), func_v2.clone()));
 
-    cc.merge(&func_v0, &func_v2);
-    assert!(cc.merged(&func_v0, &func_v2));
-    assert!(cc.merged(&func_v1, &func_v2));
+    cc.merge(func_v0.clone(), func_v2.clone());
+    assert!(cc.merged(func_v0.clone(), func_v2.clone()));
+    assert!(cc.merged(func_v1.clone(), func_v2.clone()));
 
     assert_eq!(cc.map.len(), 3); // each func needs an entry
 }
@@ -217,42 +230,42 @@ fn struct_union_no_add() {
 
     // This particular pattern of unifications exploits a potentially
     // subtle bug:
-    // - We merge `STRUCT_0` and `STRUCT_1`
-    //   and then merge `FUNC(STRUCT_0)` and `FUNC(STRUCT_2)`.
-    // - From this we should be able to deduce that `FUNC(STRUCT_1) == FUNC(STRUCT_2)`.
+    // - We merge `Types::struct0()` and `Types::struct1()`
+    //   and then merge `FUNC(Types::struct0())` and `FUNC(Types::struct2())`.
+    // - From this we should be able to deduce that `FUNC(Types::struct1()) == FUNC(Types::struct2())`.
     // - However, if we are not careful with accounting for
     //   predecessors and so forth, this fails. For example, when
-    //   adding `FUNC(STRUCT_1)`, we have to consider `FUNC(STRUCT_0)`
-    //   to be a predecessor of `STRUCT_1`.
+    //   adding `FUNC(Types::struct1())`, we have to consider `FUNC(Types::struct0())`
+    //   to be a predecessor of `Types::struct1()`.
 
     let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    cc.merge(STRUCT_0, STRUCT_1);
-    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_1));
-    assert!(!cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
+    cc.merge(Types::struct0(), Types::struct1());
+    assert!(cc.merged(Types::func_struct0(), Types::func_struct1()));
+    assert!(!cc.merged(Types::func_struct0(), Types::func_struct2()));
 
-    cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_2);
-    assert!(cc.merged(FUNC_STRUCT_0, FUNC_STRUCT_2));
-    assert!(cc.merged(FUNC_STRUCT_1, FUNC_STRUCT_2));
+    cc.merge(Types::func_struct0(), Types::func_struct2());
+    assert!(cc.merged(Types::func_struct0(), Types::func_struct2()));
+    assert!(cc.merged(Types::func_struct1(), Types::func_struct2()));
 }
 
 #[test]
 fn merged_keys() {
     let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    cc.merge(STRUCT_0, STRUCT_1);
-    cc.merge(FUNC_STRUCT_0, FUNC_STRUCT_2);
+    cc.merge(Types::struct0(), Types::struct1());
+    cc.merge(Types::func_struct0(), Types::func_struct2());
 
-    // Here we don't yet see `FUNC_STRUCT_1` because it has no
+    // Here we don't yet see `Types::func_struct1()` because it has no
     // corresponding node:
-    let keys: Vec<Type> = cc.merged_keys(FUNC_STRUCT_2).collect();
-    assert_eq!(&keys[..], &[FUNC_STRUCT_2, FUNC_STRUCT_0]);
+    let keys: Vec<Type> = cc.merged_keys(Types::func_struct2()).collect();
+    assert_eq!(&keys[..], &[Types::func_struct2(), Types::func_struct0()]);
 
     // But of course `merged` returns true (and adds a node):
-    assert!(cc.merged(FUNC_STRUCT_1, FUNC_STRUCT_2));
+    assert!(cc.merged(Types::func_struct1(), Types::func_struct2()));
 
     // So now we see it:
-    let keys: Vec<Type> = cc.merged_keys(FUNC_STRUCT_2).collect();
-    assert_eq!(&keys[..], &[FUNC_STRUCT_2, FUNC_STRUCT_1, FUNC_STRUCT_0]);
+    let keys: Vec<Type> = cc.merged_keys(Types::func_struct2()).collect();
+    assert_eq!(&keys[..], &[Types::func_struct2(), Types::func_struct1(), Types::func_struct0()]);
 }
 
