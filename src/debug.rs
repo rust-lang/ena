@@ -2,7 +2,7 @@
 use std::cell::Cell;
 
 #[cfg(test)]
-thread_local!(pub static ENABLED: Cell<u32> = Cell::new(1));
+thread_local!(pub static ENABLED: Cell<u32> = Cell::new(0));
 
 #[cfg(test)]
 #[macro_export]
