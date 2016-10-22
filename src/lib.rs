@@ -8,14 +8,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! Various data structures used by the Rust compiler. The intention
-//! is that code in here should be not be *specific* to rustc, so that
-//! it can be easily unit tested and so forth.
-//!
-//! # Note
-//!
-//! This API is completely unstable and subject to change.
-
 #![cfg_attr(test, feature(test))]
 #![allow(dead_code)]
 
