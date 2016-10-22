@@ -1,5 +1,5 @@
 [package]
-name = "rusty-cc"
-version = "0.0.1"
+name = "ena"
+version = "0.1"
 authors = ["Niko Matsakis <niko@alum.mit.edu>"]
 
