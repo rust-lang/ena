@@ -14,9 +14,9 @@
 #[macro_use]
 mod debug;
 
-mod constraint;
-mod graph;
-mod snapshot_vec;
-mod cc;
-mod unify;
-mod bitvec;
+pub mod constraint;
+pub mod graph;
+pub mod snapshot_vec;
+pub mod cc;
+pub mod unify;
+pub mod bitvec;
