@@ -66,7 +66,6 @@ impl UnifyKey for Token {
     }
 }
 
-
 impl<K: Key> CongruenceClosure<K> {
     pub fn new() -> CongruenceClosure<K> {
         CongruenceClosure {

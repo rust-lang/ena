@@ -11,7 +11,7 @@
 extern crate test;
 use self::test::Bencher;
 use std::collections::HashSet;
-use unify::{UnifyKey, UnificationTable};
+use unify::{UnifyKey, UnifyValue, UnificationTable};
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 struct UnitKey(u32);
@@ -147,13 +147,23 @@ impl UnifyKey for IntKey {
     }
 }
 
+impl UnifyValue for i32 {
+    fn unify_values(&a: &i32, &b: &i32) -> Result<Self, (Self, Self)> {
+        if a == b {
+            Ok(a)
+        } else {
+            Err((a, b))
+        }
+    }
+}
+
 #[test]
 fn unify_same_int_twice() {
     let mut ut: UnificationTable<IntKey> = UnificationTable::new();
     let k1 = ut.new_key(None);
     let k2 = ut.new_key(None);
-    assert!(ut.unify_var_value(k1, 22).is_ok());
-    assert!(ut.unify_var_value(k2, 22).is_ok());
+    assert!(ut.unify_var_value(k1, Some(22)).is_ok());
+    assert!(ut.unify_var_value(k2, Some(22)).is_ok());
     assert!(ut.unify_var_var(k1, k2).is_ok());
     assert_eq!(ut.probe(k1), Some(22));
 }
@@ -164,7 +174,7 @@ fn unify_vars_then_int_indirect() {
     let k1 = ut.new_key(None);
     let k2 = ut.new_key(None);
     assert!(ut.unify_var_var(k1, k2).is_ok());
-    assert!(ut.unify_var_value(k1, 22).is_ok());
+    assert!(ut.unify_var_value(k1, Some(22)).is_ok());
     assert_eq!(ut.probe(k2), Some(22));
 }
 
@@ -174,8 +184,8 @@ fn unify_vars_different_ints_1() {
     let k1 = ut.new_key(None);
     let k2 = ut.new_key(None);
     assert!(ut.unify_var_var(k1, k2).is_ok());
-    assert!(ut.unify_var_value(k1, 22).is_ok());
-    assert!(ut.unify_var_value(k2, 23).is_err());
+    assert!(ut.unify_var_value(k1, Some(22)).is_ok());
+    assert!(ut.unify_var_value(k2, Some(23)).is_err());
 }
 
 #[test]
@@ -184,8 +194,8 @@ fn unify_vars_different_ints_2() {
     let k1 = ut.new_key(None);
     let k2 = ut.new_key(None);
     assert!(ut.unify_var_var(k2, k1).is_ok());
-    assert!(ut.unify_var_value(k1, 22).is_ok());
-    assert!(ut.unify_var_value(k2, 23).is_err());
+    assert!(ut.unify_var_value(k1, Some(22)).is_ok());
+    assert!(ut.unify_var_value(k2, Some(23)).is_err());
 }
 
 #[test]
@@ -193,8 +203,8 @@ fn unify_distinct_ints_then_vars() {
     let mut ut: UnificationTable<IntKey> = UnificationTable::new();
     let k1 = ut.new_key(None);
     let k2 = ut.new_key(None);
-    assert!(ut.unify_var_value(k1, 22).is_ok());
-    assert!(ut.unify_var_value(k2, 23).is_ok());
+    assert!(ut.unify_var_value(k1, Some(22)).is_ok());
+    assert!(ut.unify_var_value(k2, Some(23)).is_ok());
     assert!(ut.unify_var_var(k2, k1).is_err());
 }
 
@@ -204,9 +214,9 @@ fn unify_root_value_1() {
     let k1 = ut.new_key(None);
     let k2 = ut.new_key(None);
     let k3 = ut.new_key(None);
-    assert!(ut.unify_var_value(k1, 22).is_ok());
+    assert!(ut.unify_var_value(k1, Some(22)).is_ok());
     assert!(ut.unify_var_var(k1, k2).is_ok());
-    assert!(ut.unify_var_value(k3, 23).is_ok());
+    assert!(ut.unify_var_value(k3, Some(23)).is_ok());
     assert!(ut.unify_var_var(k1, k3).is_err());
 }
 
@@ -216,8 +226,8 @@ fn unify_root_value_2() {
     let k1 = ut.new_key(None);
     let k2 = ut.new_key(None);
     let k3 = ut.new_key(None);
-    assert!(ut.unify_var_value(k1, 22).is_ok());
+    assert!(ut.unify_var_value(k1, Some(22)).is_ok());
     assert!(ut.unify_var_var(k2, k1).is_ok());
-    assert!(ut.unify_var_value(k3, 23).is_ok());
+    assert!(ut.unify_var_value(k3, Some(23)).is_ok());
     assert!(ut.unify_var_var(k1, k3).is_err());
 }

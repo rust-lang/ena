@@ -28,13 +28,19 @@ mod tests;
 /// Clients are expected to provide implementations of this trait; you
 /// can see some examples in the `test` module.
 pub trait UnifyKey : Copy + Clone + Debug + PartialEq {
-    type Value: Clone + PartialEq + Debug;
+    type Value: UnifyValue;
 
     fn index(&self) -> u32;
 
     fn from_index(u: u32) -> Self;
 
     fn tag() -> &'static str;
+}
+
+pub trait UnifyValue: Clone + Debug {
+    /// Given two values, produce a new value that combines them.
+    /// If that is not possible, produce an error.
+    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, (Self, Self)>;
 }
 
 /// Value of a unification key. We implement Tarjan's union-find
@@ -355,13 +361,13 @@ impl<'tcx, K> UnificationTable<K>
 }
 
 /// ////////////////////////////////////////////////////////////////////////
-/// Code to handle keys which carry a value, like ints,
+/// Code to handle keys which carry an optional value, like ints,
 /// floats---anything that doesn't have a subtyping relationship we
 /// need to worry about.
 
 impl<'tcx, K, V> UnificationTable<K>
-    where K: Debug + UnifyKey<Value = Option<V>>,
-          V: Debug + Clone + PartialEq
+    where K: Debug + UnifyKey<Value = V>,
+          V: UnifyValue,
 {
     pub fn unify_var_var(&mut self, a_id: K, b_id: K) -> Result<(), (V, V)> {
         let root_a = self.get_root_key(a_id);
@@ -371,46 +377,46 @@ impl<'tcx, K, V> UnificationTable<K>
             return Ok(());
         }
 
-        let combined = {
-            match (&self.value(root_a).value, &self.value(root_b).value) {
-                (&None, &None) => None,
-                (&Some(ref v), &None) | (&None, &Some(ref v)) => Some(v.clone()),
-                (&Some(ref v1), &Some(ref v2)) => {
-                    if *v1 != *v2 {
-                        return Err((v1.clone(), v2.clone()));
-                    }
-                    Some(v1.clone())
-                }
-            }
-        };
+        let combined = try!(V::unify_values(&self.value(root_a).value, &self.value(root_b).value));
 
         Ok(self.unify_roots(root_a, root_b, combined))
     }
 
-    /// Sets the value of the key `a_id` to `b`. Because simple keys do not have any subtyping
-    /// relationships, if `a_id` already has a value, it must be the same as `b`.
+    /// Sets the value of the key `a_id` to `b`, attempting to merge
+    /// with the previous value.
     pub fn unify_var_value(&mut self, a_id: K, b: V) -> Result<(), (V, V)> {
         let root_a = self.get_root_key(a_id);
-
-        if let Some(ref a_t) = self.value(root_a).value {
-            return if *a_t == b {
-                Ok(())
-            } else {
-                Err((a_t.clone(), b))
-            };
-        }
-
-        self.update_value(root_a, |node| node.value = Some(b));
+        let value = try!(V::unify_values(&self.value(root_a).value, &b));
+        self.update_value(root_a, |node| node.value = value);
         Ok(())
     }
 
-    pub fn has_value(&mut self, id: K) -> bool {
-        let id = self.get_root_key(id);
-        self.value(id).value.is_some()
-    }
-
-    pub fn probe(&mut self, id: K) -> Option<V> {
+    pub fn probe(&mut self, id: K) -> V {
         let id = self.get_root_key(id);
         self.value(id).value.clone()
+    }
+}
+
+
+///////////////////////////////////////////////////////////////////////////
+
+impl UnifyValue for () {
+    fn unify_values(_: &(), _: &()) -> Result<(), ((), ())> {
+        Ok(())
+    }
+}
+
+impl<V: UnifyValue> UnifyValue for Option<V> {
+    fn unify_values(a: &Option<V>, b: &Option<V>) -> Result<Self, (Self, Self)> {
+        match (a, b) {
+            (&None, &None) => Ok(None),
+            (&Some(ref v), &None) | (&None, &Some(ref v)) => Ok(Some(v.clone())),
+            (&Some(ref a), &Some(ref b)) => {
+                match V::unify_values(a, b) {
+                    Ok(v) => Ok(Some(v)),
+                    Err((a, b)) => Err((Some(a), Some(b))),
+                }
+            }
+        }
     }
 }
