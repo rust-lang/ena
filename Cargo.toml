@@ -4,6 +4,6 @@ description = "Union-find, congruence closure, and other unification code. Based
 license = "MIT/Apache-2.0"
 homepage = "https://github.com/nikomatsakis/ena"
 repository = "https://github.com/nikomatsakis/ena"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Niko Matsakis <niko@alum.mit.edu>"]
 
