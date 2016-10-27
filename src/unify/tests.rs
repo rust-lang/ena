@@ -165,7 +165,7 @@ fn unify_same_int_twice() {
     assert!(ut.unify_var_value(k1, Some(22)).is_ok());
     assert!(ut.unify_var_value(k2, Some(22)).is_ok());
     assert!(ut.unify_var_var(k1, k2).is_ok());
-    assert_eq!(ut.probe(k1), Some(22));
+    assert_eq!(ut.probe_value(k1), Some(22));
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn unify_vars_then_int_indirect() {
     let k2 = ut.new_key(None);
     assert!(ut.unify_var_var(k1, k2).is_ok());
     assert!(ut.unify_var_value(k1, Some(22)).is_ok());
-    assert_eq!(ut.probe(k2), Some(22));
+    assert_eq!(ut.probe_value(k2), Some(22));
 }
 
 #[test]

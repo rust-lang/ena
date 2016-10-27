@@ -43,6 +43,10 @@ pub trait UnifyValue: Clone + Debug {
     fn unify_values(value1: &Self, value2: &Self) -> Result<Self, (Self, Self)>;
 }
 
+/// Marker trait which indicates that `UnifyValues::unify_values` will never return `Err`.
+pub trait InfallibleUnifyValue: UnifyValue {
+}
+
 /// Value of a unification key. We implement Tarjan's union-find
 /// algorithm: when two keys are unified, one of them is converted
 /// into a "redirect" pointing at the other. These redirects form a
@@ -338,37 +342,30 @@ impl<'a, K: 'a> Iterator for UnionedKeys<'a, K>
 }
 
 /// ////////////////////////////////////////////////////////////////////////
-/// Base union-find algorithm, where we are just making setes
+/// Public API
 
-impl<'tcx, K> UnificationTable<K>
-    where K: UnifyKey<Value = ()>
+impl<'tcx, K, V> UnificationTable<K>
+    where K: UnifyKey<Value = V>,
+          V: UnifyValue,
 {
-    pub fn union(&mut self, a_id: K, b_id: K) {
-        let root_a = self.get_root_key(a_id);
-        let root_b = self.get_root_key(b_id);
-        if root_a != root_b {
-            self.unify_roots(root_a, root_b, ());
-        }
+    /// Unions two keys without the possibility of failure; only
+    /// applicable to InfallibleUnifyValue.
+    pub fn union(&mut self, a_id: K, b_id: K)
+        where V: InfallibleUnifyValue
+    {
+        self.unify_var_var(a_id, b_id).unwrap();
     }
 
+    /// Given two keys, indicates whether they have been unioned together.
+    pub fn unioned(&mut self, a_id: K, b_id: K) -> bool {
+        self.find(a_id) == self.find(b_id)
+    }
+
+    /// Given a key, returns the (current) root key.
     pub fn find(&mut self, id: K) -> K {
         self.get_root_key(id)
     }
 
-    pub fn unioned(&mut self, a_id: K, b_id: K) -> bool {
-        self.find(a_id) == self.find(b_id)
-    }
-}
-
-/// ////////////////////////////////////////////////////////////////////////
-/// Code to handle keys which carry an optional value, like ints,
-/// floats---anything that doesn't have a subtyping relationship we
-/// need to worry about.
-
-impl<'tcx, K, V> UnificationTable<K>
-    where K: Debug + UnifyKey<Value = V>,
-          V: UnifyValue,
-{
     pub fn unify_var_var(&mut self, a_id: K, b_id: K) -> Result<(), (V, V)> {
         let root_a = self.get_root_key(a_id);
         let root_b = self.get_root_key(b_id);
@@ -391,7 +388,7 @@ impl<'tcx, K, V> UnificationTable<K>
         Ok(())
     }
 
-    pub fn probe(&mut self, id: K) -> V {
+    pub fn probe_value(&mut self, id: K) -> V {
         let id = self.get_root_key(id);
         self.value(id).value.clone()
     }
@@ -404,6 +401,9 @@ impl UnifyValue for () {
     fn unify_values(_: &(), _: &()) -> Result<(), ((), ())> {
         Ok(())
     }
+}
+
+impl InfallibleUnifyValue for () {
 }
 
 impl<V: UnifyValue> UnifyValue for Option<V> {
@@ -419,4 +419,7 @@ impl<V: UnifyValue> UnifyValue for Option<V> {
             }
         }
     }
+}
+
+impl<V: InfallibleUnifyValue> InfallibleUnifyValue for Option<V> {
 }
