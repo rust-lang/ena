@@ -49,15 +49,11 @@ pub struct Token {
 
 impl Token {
     fn new(index: u32) -> Token {
-        Token {
-            index: index,
-        }
+        Token { index: index }
     }
 
     fn from_node(node: NodeIndex) -> Token {
-        Token {
-            index: node.0 as u32,
-        }
+        Token { index: node.0 as u32 }
     }
 
     fn node(&self) -> NodeIndex {
@@ -76,8 +72,10 @@ impl UnifyKey for Token {
     fn tag() -> &'static str {
         "CongruenceClosure"
     }
-    fn order_roots(a: Self, &a_value: &KeyKind,
-                   b: Self, &b_value: &KeyKind)
+    fn order_roots(a: Self,
+                   &a_value: &KeyKind,
+                   b: Self,
+                   &b_value: &KeyKind)
                    -> Option<(Self, Self)> {
         if a_value == b_value {
             None
@@ -100,7 +98,7 @@ impl UnifyValue for KeyKind {
     }
 }
 
-impl InfallibleUnifyValue for KeyKind { }
+impl InfallibleUnifyValue for KeyKind {}
 
 impl<K: Key> CongruenceClosure<K> {
     pub fn new() -> CongruenceClosure<K> {
@@ -323,7 +321,9 @@ impl<'a, K: Key> Algorithm<'a, K> {
     }
 
     fn maybe_merge(&mut self, p_u: Token, p_v: Token) {
-        debug!("maybe_merge(): p_u={:?} p_v={:?}", self.key(p_u), self.key(p_v));
+        debug!("maybe_merge(): p_u={:?} p_v={:?}",
+               self.key(p_u),
+               self.key(p_v));
 
         if !self.unioned(p_u, p_v) && self.shallow_eq(p_u, p_v) && self.congruent(p_u, p_v) {
             self.merge(p_u, p_v);
@@ -343,7 +343,10 @@ impl<'a, K: Key> Algorithm<'a, K> {
             debug!("congruent: s_u={:?} s_v={:?}", s_u, s_v);
             self.unioned(s_u, s_v)
         });
-        debug!("congruent({:?}, {:?}) = {:?}", self.key(p_u), self.key(p_v), r);
+        debug!("congruent({:?}, {:?}) = {:?}",
+               self.key(p_u),
+               self.key(p_v),
+               r);
         r
     }
 
@@ -365,7 +368,10 @@ impl<'a, K: Key> Algorithm<'a, K> {
 
     fn unioned(&mut self, u: Token, v: Token) -> bool {
         let r = self.table.unioned(u, v);
-        debug!("unioned(u={:?}, v={:?}) = {:?}", self.key(u), self.key(v), r);
+        debug!("unioned(u={:?}, v={:?}) = {:?}",
+               self.key(u),
+               self.key(v),
+               r);
         r
     }
 
@@ -396,19 +402,22 @@ impl<'a, K: Key> Algorithm<'a, K> {
                 // error: user asked us to union i32/u32 or Vec<T>/Vec<U>;
                 // for now just panic.
                 panic!("inconsistent conclusion: {:?} vs {:?}",
-                       self.key(u), self.key(v));
+                       self.key(u),
+                       self.key(v));
             }
         }
     }
 
-    fn successors(&self, token: Token) -> impl Iterator<Item=Token> + 'a {
-        self.graph.successor_nodes(token.node())
-                  .map(Token::from_node)
+    fn successors(&self, token: Token) -> impl Iterator<Item = Token> + 'a {
+        self.graph
+            .successor_nodes(token.node())
+            .map(Token::from_node)
     }
 
-    fn predecessors(&self, token: Token) -> impl Iterator<Item=Token> + 'a {
-        self.graph.predecessor_nodes(token.node())
-                  .map(Token::from_node)
+    fn predecessors(&self, token: Token) -> impl Iterator<Item = Token> + 'a {
+        self.graph
+            .predecessor_nodes(token.node())
+            .map(Token::from_node)
     }
 
     /// If `token` has been unioned with something generative, returns
