@@ -35,6 +35,26 @@ pub trait UnifyKey : Copy + Clone + Debug + PartialEq {
     fn from_index(u: u32) -> Self;
 
     fn tag() -> &'static str;
+
+    /// If true, then `self` should be preferred as root to `other`.
+    /// Note that we assume a consistent partial ordering, so
+    /// returning true implies that `other.prefer_as_root_to(self)`
+    /// would return false.  If there is no ordering between two keys
+    /// (i.e., `a.prefer_as_root_to(b)` and `b.prefer_as_root_to(a)`
+    /// both return false) then the rank will be used to determine the
+    /// root in an optimal way.
+    ///
+    /// NB. The only reason to implement this method is if you want to
+    /// control what value is returned from `find()`. In general, it
+    /// is better to let the unification table determine the root,
+    /// since overriding the rank can cause execution time to increase
+    /// dramatically.
+    #[allow(unused_variables)]
+    fn order_roots(a: Self, a_value: &Self::Value,
+                   b: Self, b_value: &Self::Value)
+                   -> Option<(Self, Self)> {
+        None
+    }
 }
 
 pub trait UnifyValue: Clone + Debug {
@@ -238,7 +258,20 @@ impl<K: UnifyKey> UnificationTable<K> {
 
         let rank_a = self.value(key_a).rank;
         let rank_b = self.value(key_b).rank;
-        if rank_a > rank_b {
+        if let Some((new_root, redirected)) = K::order_roots(key_a, &self.value(key_a).value,
+                                                             key_b, &self.value(key_b).value) {
+            // compute the new rank for the new root that they chose;
+            // this may not be the optimal choice.
+            let new_rank = if new_root == key_a {
+                debug_assert!(redirected == key_b);
+                if rank_a > rank_b { rank_a } else { rank_b + 1 }
+            } else {
+                debug_assert!(new_root == key_b);
+                debug_assert!(redirected == key_a);
+                if rank_b > rank_a { rank_b } else { rank_a + 1 }
+            };
+            self.redirect_root(new_rank, redirected, new_root, new_value);
+        } else if rank_a > rank_b {
             // a has greater rank, so a should become b's parent,
             // i.e., b should redirect to a.
             self.redirect_root(rank_a, key_b, key_a, new_value);

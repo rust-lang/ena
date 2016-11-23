@@ -11,7 +11,8 @@
 extern crate test;
 use self::test::Bencher;
 use std::collections::HashSet;
-use unify::{UnifyKey, UnifyValue, UnificationTable};
+use std::cmp;
+use unify::{UnifyKey, UnifyValue, UnificationTable, InfallibleUnifyValue};
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 struct UnitKey(u32);
@@ -230,4 +231,86 @@ fn unify_root_value_2() {
     assert!(ut.unify_var_var(k2, k1).is_ok());
     assert!(ut.unify_var_value(k3, Some(23)).is_ok());
     assert!(ut.unify_var_var(k1, k3).is_err());
+}
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+struct OrderedKey(u32);
+
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+struct OrderedRank(u32);
+
+impl UnifyKey for OrderedKey {
+    type Value = OrderedRank;
+    fn index(&self) -> u32 {
+        self.0
+    }
+    fn from_index(u: u32) -> OrderedKey {
+        OrderedKey(u)
+    }
+    fn tag() -> &'static str {
+        "OrderedKey"
+    }
+    fn order_roots(a: OrderedKey, a_rank: &OrderedRank,
+                   b: OrderedKey, b_rank: &OrderedRank)
+                   -> Option<(OrderedKey, OrderedKey)> {
+        println!("{:?} vs {:?}", a_rank, b_rank);
+        if a_rank > b_rank {
+            Some((a, b))
+        } else if b_rank > a_rank {
+            Some((b, a))
+        } else {
+            None
+        }
+    }
+}
+
+impl UnifyValue for OrderedRank {
+    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, (Self, Self)> {
+        Ok(OrderedRank(cmp::max(value1.0, value2.0)))
+    }
+}
+
+impl InfallibleUnifyValue for OrderedRank { }
+
+#[test]
+fn ordered_key() {
+    let mut ut: UnificationTable<OrderedKey> = UnificationTable::new();
+
+    let k0_1 = ut.new_key(OrderedRank(0));
+    let k0_2 = ut.new_key(OrderedRank(0));
+    let k0_3 = ut.new_key(OrderedRank(0));
+    let k0_4 = ut.new_key(OrderedRank(0));
+
+    ut.union(k0_1, k0_2); // rank of one of those will now be 1
+    ut.union(k0_3, k0_4); // rank of new root also 1
+    ut.union(k0_1, k0_3); // rank of new root now 2
+
+    let k0_5 = ut.new_key(OrderedRank(0));
+    let k0_6 = ut.new_key(OrderedRank(0));
+    ut.union(k0_5, k0_6); // rank of new root now 1
+
+    ut.union(k0_1, k0_5); // new root rank 2, should not be k0_5 or k0_6
+    assert!(vec![k0_1, k0_2, k0_3, k0_4].contains(&ut.find(k0_1)));
+}
+
+#[test]
+fn ordered_key_k1() {
+    let mut ut: UnificationTable<OrderedKey> = UnificationTable::new();
+
+    let k0_1 = ut.new_key(OrderedRank(0));
+    let k0_2 = ut.new_key(OrderedRank(0));
+    let k0_3 = ut.new_key(OrderedRank(0));
+    let k0_4 = ut.new_key(OrderedRank(0));
+
+    ut.union(k0_1, k0_2); // rank of one of those will now be 1
+    ut.union(k0_3, k0_4); // rank of new root also 1
+    ut.union(k0_1, k0_3); // rank of new root now 2
+
+    let k1_5 = ut.new_key(OrderedRank(1));
+    let k1_6 = ut.new_key(OrderedRank(1));
+    ut.union(k1_5, k1_6); // rank of new root now 1
+
+    ut.union(k0_1, k1_5); // even though k1 has lower rank, it wins
+    assert!(vec![k1_5, k1_6].contains(&ut.find(k0_1)),
+            "unexpected choice for root: {:?}", ut.find(k0_1));
 }
