@@ -6,18 +6,18 @@ use graph::{Graph, NodeIndex};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
-use unify::{UnifyKey, UnificationTable, UnionedKeys};
+use unify::{UnifyKey, UnifyValue, InfallibleUnifyValue, UnificationTable, UnionedKeys};
 
 #[cfg(test)]
 mod test;
 
-pub struct CongruenceClosure<K: Hash + Eq> {
+pub struct CongruenceClosure<K: Key> {
     map: HashMap<K, Token>,
     table: UnificationTable<Token>,
     graph: Graph<K, ()>,
 }
 
-pub trait Key : Hash + Eq + Clone + Debug {
+pub trait Key: Hash + Eq + Clone + Debug {
     // If this Key has some efficient way of converting itself into a
     // congruence closure `Token`, then it shold return `Some(token)`.
     // Otherwise, return `None`, in which case the CC will internally
@@ -27,9 +27,17 @@ pub trait Key : Hash + Eq + Clone + Debug {
     fn to_token(&self) -> Option<Token> {
         None
     }
+    fn key_kind(&self) -> KeyKind;
     fn shallow_eq(&self, key: &Self) -> bool;
     fn successors(&self) -> Vec<Self>;
 }
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum KeyKind {
+    Applicative,
+    Generative,
+}
+use self::KeyKind::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Token {
@@ -41,11 +49,15 @@ pub struct Token {
 
 impl Token {
     fn new(index: u32) -> Token {
-        Token { index: index }
+        Token {
+            index: index,
+        }
     }
 
     fn from_node(node: NodeIndex) -> Token {
-        Token { index: node.0 as u32 }
+        Token {
+            index: node.0 as u32,
+        }
     }
 
     fn node(&self) -> NodeIndex {
@@ -54,7 +66,7 @@ impl Token {
 }
 
 impl UnifyKey for Token {
-    type Value = ();
+    type Value = KeyKind;
     fn index(&self) -> u32 {
         self.index
     }
@@ -64,7 +76,31 @@ impl UnifyKey for Token {
     fn tag() -> &'static str {
         "CongruenceClosure"
     }
+    fn order_roots(a: Self, &a_value: &KeyKind,
+                   b: Self, &b_value: &KeyKind)
+                   -> Option<(Self, Self)> {
+        if a_value == b_value {
+            None
+        } else if a_value == Generative {
+            Some((a, b))
+        } else {
+            debug_assert!(b_value == Generative);
+            Some((b, a))
+        }
+    }
 }
+
+impl UnifyValue for KeyKind {
+    fn unify_values(&kind1: &Self, &kind2: &Self) -> Result<Self, (Self, Self)> {
+        match (kind1, kind2) {
+            (Generative, _) => Ok(Generative),
+            (_, Generative) => Ok(Generative),
+            (Applicative, Applicative) => Ok(Applicative),
+        }
+    }
+}
+
+impl InfallibleUnifyValue for KeyKind { }
 
 impl<K: Key> CongruenceClosure<K> {
     pub fn new() -> CongruenceClosure<K> {
@@ -87,10 +123,10 @@ impl<K: Key> CongruenceClosure<K> {
     /// **WARNING:** The new key **must** be a leaf (no successor
     /// keys) or else things will not work right. This invariant is
     /// not currently checked.
-    pub fn new_token<OP>(&mut self, key_op: OP) -> Token
+    pub fn new_token<OP>(&mut self, key_kind: KeyKind, key_op: OP) -> Token
         where OP: FnOnce(Token) -> K
     {
-        let token = self.table.new_key(());
+        let token = self.table.new_key(key_kind);
         let key = key_op(token);
         let node = self.graph.add_node(key);
         assert_eq!(token.node(), node);
@@ -157,10 +193,10 @@ impl<K: Key> CongruenceClosure<K> {
         // example, if we are adding `Box<Foo>`, the successor would
         // be `Foo`.  So go ahead and recursively add `Foo` if it
         // doesn't already exist.
-        let successors: Vec<Token> = key.successors()
-                                        .into_iter()
-                                        .map(|s| self.add(s))
-                                        .collect();
+        let successors: Vec<_> = key.successors()
+            .into_iter()
+            .map(|s| self.add(s))
+            .collect();
 
         debug!("add: key={:?} successors={:?}", key, successors);
 
@@ -210,7 +246,7 @@ impl<K: Key> CongruenceClosure<K> {
     /// Gets the token for a key, if any.
     fn get(&self, key: &K) -> Option<Token> {
         key.to_token()
-           .or_else(|| self.map.get(key).cloned())
+            .or_else(|| self.map.get(key).cloned())
     }
 
     /// Gets the token for a key, adding one if none exists. Returns the token
@@ -220,7 +256,7 @@ impl<K: Key> CongruenceClosure<K> {
             return (false, token);
         }
 
-        let token = self.new_token(|_| key.clone());
+        let token = self.new_token(key.key_kind(), |_| key.clone());
         self.map.insert(key.clone(), token);
         (true, token)
     }
@@ -252,7 +288,7 @@ impl<'cc, K: Key> Iterator for MergedKeys<'cc, K> {
 
 // # The core algorithm
 
-struct Algorithm<'a, K: 'a> {
+struct Algorithm<'a, K: Key + 'a> {
     graph: &'a Graph<K, ()>,
     table: &'a mut UnificationTable<Token>,
 }
@@ -287,7 +323,7 @@ impl<'a, K: Key> Algorithm<'a, K> {
     }
 
     fn maybe_merge(&mut self, p_u: Token, p_v: Token) {
-        debug!("maybe_merge(): p_u={:?} p_v={:?}", p_u, p_v);
+        debug!("maybe_merge(): p_u={:?} p_v={:?}", self.key(p_u), self.key(p_v));
 
         if !self.unioned(p_u, p_v) && self.shallow_eq(p_u, p_v) && self.congruent(p_u, p_v) {
             self.merge(p_u, p_v);
@@ -299,29 +335,90 @@ impl<'a, K: Key> Algorithm<'a, K> {
     // result of this fn is not really meaningful unless the two nodes
     // are shallow equal here.)
     fn congruent(&mut self, p_u: Token, p_v: Token) -> bool {
-        let ss_u: Vec<_> = self.graph.successor_nodes(p_u.node()).collect();
-        let ss_v: Vec<_> = self.graph.successor_nodes(p_v.node()).collect();
-        ss_u.len() == ss_v.len() &&
-        {
-            ss_u.into_iter()
-                .zip(ss_v.into_iter())
-                .all(|(s_u, s_v)| self.unioned(Token::from_node(s_u), Token::from_node(s_v)))
-        }
+        debug_assert!(self.shallow_eq(p_u, p_v));
+        debug!("congruent({:?}, {:?})", self.key(p_u), self.key(p_v));
+        let succs_u = self.successors(p_u);
+        let succs_v = self.successors(p_v);
+        let r = succs_u.zip(succs_v).all(|(s_u, s_v)| {
+            debug!("congruent: s_u={:?} s_v={:?}", s_u, s_v);
+            self.unioned(s_u, s_v)
+        });
+        debug!("congruent({:?}, {:?}) = {:?}", self.key(p_u), self.key(p_v), r);
+        r
+    }
+
+    fn key(&self, u: Token) -> &'a K {
+        self.graph.node_data(u.node())
     }
 
     // Compare the local data, not considering successor nodes. So e.g
     // `Box<X>` and `Box<Y>` are shallow equal for any `X` and `Y`.
     fn shallow_eq(&self, u: Token, v: Token) -> bool {
-        let key_u = self.graph.node_data(u.node());
-        let key_v = self.graph.node_data(v.node());
-        key_u.shallow_eq(key_v)
+        let r = self.key(u).shallow_eq(self.key(v));
+        debug!("shallow_eq({:?}, {:?}) = {:?}", self.key(u), self.key(v), r);
+        r
+    }
+
+    fn token_kind(&self, u: Token) -> KeyKind {
+        self.graph.node_data(u.node()).key_kind()
     }
 
     fn unioned(&mut self, u: Token, v: Token) -> bool {
-        self.table.unioned(u, v)
+        let r = self.table.unioned(u, v);
+        debug!("unioned(u={:?}, v={:?}) = {:?}", self.key(u), self.key(v), r);
+        r
     }
 
     fn union(&mut self, u: Token, v: Token) {
-        self.table.union(u, v)
+        debug!("union(u={:?}, v={:?})", self.key(u), self.key(v));
+
+        // find the roots of `u` and `v`; if `u` and `v` have been unioned
+        // with anything generative, these will be generative.
+        let u = self.table.find(u);
+        let v = self.table.find(v);
+
+        // u and v are now union'd
+        self.table.union(u, v);
+
+        // if both `u` and `v` were generative, we can now propagate
+        // the constraint that their successors must also be the same
+        if self.token_kind(u) == Generative && self.token_kind(v) == Generative {
+            if self.shallow_eq(u, v) {
+                let mut succs_u = self.successors(u);
+                let mut succs_v = self.successors(v);
+                for (succ_u, succ_v) in succs_u.by_ref().zip(succs_v.by_ref()) {
+                    // assume # of succ is equal because types are WF (asserted below)
+                    self.merge(succ_u, succ_v);
+                }
+                debug_assert!(succs_u.next().is_none());
+                debug_assert!(succs_v.next().is_none());
+            } else {
+                // error: user asked us to union i32/u32 or Vec<T>/Vec<U>;
+                // for now just panic.
+                panic!("inconsistent conclusion: {:?} vs {:?}",
+                       self.key(u), self.key(v));
+            }
+        }
+    }
+
+    fn successors(&self, token: Token) -> impl Iterator<Item=Token> + 'a {
+        self.graph.successor_nodes(token.node())
+                  .map(Token::from_node)
+    }
+
+    fn predecessors(&self, token: Token) -> impl Iterator<Item=Token> + 'a {
+        self.graph.predecessor_nodes(token.node())
+                  .map(Token::from_node)
+    }
+
+    /// If `token` has been unioned with something generative, returns
+    /// `Ok(u)` where `u` is the generative token. Otherwise, returns
+    /// `Err(v)` where `v` is the root of `token`.
+    fn normalize_to_generative(&mut self, token: Token) -> Result<Token, Token> {
+        let token = self.table.find(token);
+        match self.token_kind(token) {
+            Generative => Ok(token),
+            Applicative => Err(token),
+        }
     }
 }

@@ -10,6 +10,8 @@
 
 #![cfg_attr(test, feature(test))]
 #![allow(dead_code)]
+#![feature(conservative_impl_trait)]
+#![feature(static_in_const)]
 
 #[macro_use]
 mod debug;
