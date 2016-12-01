@@ -7,3 +7,6 @@ repository = "https://github.com/nikomatsakis/ena"
 version = "0.3.0"
 authors = ["Niko Matsakis <niko@alum.mit.edu>"]
 
+[features]
+default = ["unstable"]
+unstable = []

@@ -8,10 +8,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![cfg_attr(test, feature(test))]
+#![cfg_attr(all(feature = "unstable", test), feature(test))]
 #![allow(dead_code)]
-#![feature(conservative_impl_trait)]
-#![feature(static_in_const)]
+#![cfg_attr(feature = "unstable", feature(conservative_impl_trait))]
+#![cfg_attr(feature = "unstable", feature(static_in_const))]
 
 #[macro_use]
 mod debug;
@@ -19,6 +19,7 @@ mod debug;
 pub mod constraint;
 pub mod graph;
 pub mod snapshot_vec;
+#[cfg(feature = "unstable")]
 pub mod cc;
 pub mod unify;
 pub mod bitvec;
