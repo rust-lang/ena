@@ -8,7 +8,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#[cfg(feature = "unstable")]
 extern crate test;
+#[cfg(feature = "unstable")]
 use self::test::Bencher;
 use std::collections::HashSet;
 use std::cmp;
@@ -61,6 +63,7 @@ fn big_array() {
     }
 }
 
+#[cfg(feature = "unstable")]
 #[bench]
 fn big_array_bench(b: &mut Bencher) {
     let mut ut: UnificationTable<UnitKey> = UnificationTable::new();
