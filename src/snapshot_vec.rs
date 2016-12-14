@@ -223,3 +223,29 @@ impl<D: SnapshotVecDelegate> ops::IndexMut<usize> for SnapshotVec<D> {
         self.get_mut(index)
     }
 }
+
+impl<D: SnapshotVecDelegate> Clone for SnapshotVec<D>
+    where D::Value: Clone, D::Undo: Clone,
+{
+    fn clone(&self) -> Self {
+        SnapshotVec {
+            values: self.values.clone(),
+            undo_log: self.undo_log.clone(),
+        }
+    }
+}
+
+impl<D: SnapshotVecDelegate> Clone for UndoLog<D>
+    where D::Value: Clone, D::Undo: Clone,
+{
+    fn clone(&self) -> Self {
+        match *self {
+            OpenSnapshot => OpenSnapshot,
+            CommittedSnapshot => CommittedSnapshot,
+            NewElem(i) => NewElem(i),
+            SetElem(i, ref v) => SetElem(i, v.clone()),
+            Other(ref u) => Other(u.clone()),
+        }
+    }
+}
+

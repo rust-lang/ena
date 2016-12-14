@@ -317,3 +317,17 @@ fn ordered_key_k1() {
     assert!(vec![k1_5, k1_6].contains(&ut.find(k0_1)),
             "unexpected choice for root: {:?}", ut.find(k0_1));
 }
+
+/// Test that we *can* clone.
+#[test]
+fn clone_table() {
+    let mut ut: UnificationTable<IntKey> = UnificationTable::new();
+    let k1 = ut.new_key(None);
+    let k2 = ut.new_key(None);
+    assert!(ut.unify_var_value(k1, Some(22)).is_ok());
+    assert!(ut.unify_var_value(k2, Some(22)).is_ok());
+    assert!(ut.unify_var_var(k1, k2).is_ok());
+
+    let mut ut1 = ut.clone();
+    assert_eq!(ut1.probe_value(k1), Some(22));
+}

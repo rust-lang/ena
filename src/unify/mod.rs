@@ -85,6 +85,7 @@ struct VarValue<K: UnifyKey> {
 }
 
 /// Table of unification keys and their values.
+#[derive(Clone)]
 pub struct UnificationTable<K: UnifyKey> {
     /// Indicates the current value of each key.
     values: sv::SnapshotVec<Delegate<K>>,
