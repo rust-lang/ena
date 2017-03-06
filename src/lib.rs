@@ -10,8 +10,6 @@
 
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
 #![allow(dead_code)]
-#![cfg_attr(feature = "unstable", feature(conservative_impl_trait))]
-#![cfg_attr(feature = "unstable", feature(static_in_const))]
 
 #[macro_use]
 mod debug;

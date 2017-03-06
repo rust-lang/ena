@@ -2,10 +2,11 @@
 //! paper "Fast Decision Procedures Based on Congruence Closure" by Nelson
 //! and Oppen, JACM 1980.
 
-use graph::{Graph, NodeIndex};
+use graph::{self, Graph, NodeIndex};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::iter;
 use unify::{UnifyKey, UnifyValue, InfallibleUnifyValue, UnificationTable, UnionedKeys};
 
 #[cfg(test)]
@@ -408,13 +409,15 @@ impl<'a, K: Key> Algorithm<'a, K> {
         }
     }
 
-    fn successors(&self, token: Token) -> impl Iterator<Item = Token> + 'a {
+    fn successors(&self, token: Token) -> iter::Map<graph::AdjacentTargets<'a, K, ()>,
+                                                    fn(NodeIndex) -> Token> {
         self.graph
             .successor_nodes(token.node())
             .map(Token::from_node)
     }
 
-    fn predecessors(&self, token: Token) -> impl Iterator<Item = Token> + 'a {
+    fn predecessors(&self, token: Token) -> iter::Map<graph::AdjacentSources<'a, K, ()>,
+                                                      fn(NodeIndex) -> Token> {
         self.graph
             .predecessor_nodes(token.node())
             .map(Token::from_node)
