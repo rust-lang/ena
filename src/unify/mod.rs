@@ -8,6 +8,25 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Union-find implementation. The main type is `UnificationTable`.
+//!
+//! You can define your own type for the *keys* in the table, but you
+//! must implement `UnifyKey` for that type. The assumption is that
+//! keys will be newtyped integers, hence we require that they
+//! implement `Copy`.
+//!
+//! Keys can have values associated with them. The assumption is that
+//! these values are cheaply cloneable (ideally, `Copy`), and some of
+//! the interfaces are oriented around that assumption. If you just
+//! want the classical "union-find" algorithm where you group things
+//! into sets, use the `Value` type of `()`.
+//!
+//! When you have keys with non-trivial values, you must also define
+//! how those values can be merged. If this merging is infallible, you
+//! should implement the `InfallibleUnifyValue` trait, which unlocks
+//! various more ergonomic methods (e.g., `union()` in place of
+//! `unify_var_var()`).
+
 use std::marker;
 use std::fmt::Debug;
 use std::marker::PhantomData;

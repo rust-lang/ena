@@ -18,6 +18,7 @@
 //! ensure that any changes you make this with this pointer are rolled back, you must invoke
 //! `record` to record any changes you make and also supplying a delegate capable of reversing
 //! those changes.
+
 use self::UndoLog::*;
 
 use std::mem;
