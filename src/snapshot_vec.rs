@@ -225,6 +225,14 @@ impl<D: SnapshotVecDelegate> ops::IndexMut<usize> for SnapshotVec<D> {
     }
 }
 
+impl<D: SnapshotVecDelegate> Extend<D::Value> for SnapshotVec<D> {
+    fn extend<T>(&mut self, iterable: T) where T: IntoIterator<Item=D::Value> {
+        for item in iterable {
+            self.push(item);
+        }
+    }
+}
+
 impl<D: SnapshotVecDelegate> Clone for SnapshotVec<D>
     where D::Value: Clone, D::Undo: Clone,
 {
