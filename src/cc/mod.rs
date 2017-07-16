@@ -2,11 +2,11 @@
 //! paper "Fast Decision Procedures Based on Congruence Closure" by Nelson
 //! and Oppen, JACM 1980.
 
-use graph::{self, Graph, NodeIndex};
+use petgraph::Direction;
+use petgraph::graph::{Graph, NodeIndex};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::iter;
 use unify::{UnifyKey, UnifyValue, InfallibleUnifyValue, UnificationTable, UnionedKeys};
 
 #[cfg(test)]
@@ -54,11 +54,11 @@ impl Token {
     }
 
     fn from_node(node: NodeIndex) -> Token {
-        Token { index: node.0 as u32 }
+        Token { index: node.index() as u32 }
     }
 
     fn node(&self) -> NodeIndex {
-        NodeIndex(self.index as usize)
+        NodeIndex::new(self.index as usize)
     }
 }
 
@@ -134,7 +134,7 @@ impl<K: Key> CongruenceClosure<K> {
 
     /// Return the key for a given token
     pub fn key(&self, token: Token) -> &K {
-        self.graph.node_data(token.node())
+        &self.graph[token.node()]
     }
 
     /// Indicates they `key1` and `key2` are equivalent.
@@ -281,7 +281,7 @@ impl<'cc, K: Key> Iterator for MergedKeys<'cc, K> {
     fn next(&mut self) -> Option<Self::Item> {
         self.iterator
             .next()
-            .map(|token| self.graph.node_data(token.node()).clone())
+            .map(|token| self.graph[token.node()].clone())
     }
 }
 
@@ -316,7 +316,7 @@ impl<'a, K: Key> Algorithm<'a, K> {
         let graph = self.graph;
         self.table
             .unioned_keys(u)
-            .flat_map(|k| graph.predecessor_nodes(k.node()))
+            .flat_map(|k| graph.neighbors_directed(k.node(), Direction::Incoming))
             .map(|i| Token::from_node(i))
             .collect()
     }
@@ -352,7 +352,7 @@ impl<'a, K: Key> Algorithm<'a, K> {
     }
 
     fn key(&self, u: Token) -> &'a K {
-        self.graph.node_data(u.node())
+        &self.graph[u.node()]
     }
 
     // Compare the local data, not considering successor nodes. So e.g
@@ -364,7 +364,7 @@ impl<'a, K: Key> Algorithm<'a, K> {
     }
 
     fn token_kind(&self, u: Token) -> KeyKind {
-        self.graph.node_data(u.node()).key_kind()
+        self.graph[u.node()].key_kind()
     }
 
     fn unioned(&mut self, u: Token, v: Token) -> bool {
@@ -409,28 +409,9 @@ impl<'a, K: Key> Algorithm<'a, K> {
         }
     }
 
-    fn successors(&self, token: Token) -> iter::Map<graph::AdjacentTargets<'a, K, ()>,
-                                                    fn(NodeIndex) -> Token> {
+    fn successors(&self, token: Token) -> impl Iterator<Item = Token> + 'a {
         self.graph
-            .successor_nodes(token.node())
+            .neighbors_directed(token.node(), Direction::Outgoing)
             .map(Token::from_node)
-    }
-
-    fn predecessors(&self, token: Token) -> iter::Map<graph::AdjacentSources<'a, K, ()>,
-                                                      fn(NodeIndex) -> Token> {
-        self.graph
-            .predecessor_nodes(token.node())
-            .map(Token::from_node)
-    }
-
-    /// If `token` has been unioned with something generative, returns
-    /// `Ok(u)` where `u` is the generative token. Otherwise, returns
-    /// `Err(v)` where `v` is the root of `token`.
-    fn normalize_to_generative(&mut self, token: Token) -> Result<Token, Token> {
-        let token = self.table.find(token);
-        match self.token_kind(token) {
-            Generative => Ok(token),
-            Applicative => Err(token),
-        }
     }
 }

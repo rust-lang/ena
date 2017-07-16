@@ -70,10 +70,6 @@ fn integer() -> Type {
     Box::new(Nominal("integer", vec![]))
 }
 
-fn character() -> Type {
-    Box::new(Nominal("char", vec![]))
-}
-
 fn vec(t: Type) -> Type {
     Box::new(Nominal("Vec", vec![t]))
 }

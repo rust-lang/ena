@@ -129,12 +129,6 @@ impl<K: UnifyKey> VarValue<K> {
         self.value = value;
     }
 
-    /// Returns the key of this node. Only valid if this is a root
-    /// node, which you yourself must ensure.
-    fn key(&self) -> K {
-        self.parent
-    }
-
     fn parent(&self, self_key: K) -> Option<K> {
         self.if_not_self(self.parent, self_key)
     }
@@ -230,11 +224,6 @@ impl<K: UnifyKey> UnificationTable<K> {
         }
 
         root_key
-    }
-
-    fn is_root(&self, key: K) -> bool {
-        let index = key.index() as usize;
-        self.values.get(index).parent(key).is_none()
     }
 
     fn update_value<OP>(&mut self, key: K, op: OP)
