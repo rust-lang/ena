@@ -453,11 +453,21 @@ impl<'tcx, K, V> UnificationTable<K>
           V: UnifyValue,
 {
     /// Unions two keys without the possibility of failure; only
-    /// applicable to InfallibleUnifyValue.
+    /// applicable when unify values use `NoError` as their error
+    /// type.
     pub fn union(&mut self, a_id: K, b_id: K)
         where V: UnifyValue<Error = NoError>
     {
         self.unify_var_var(a_id, b_id).unwrap();
+    }
+
+    /// Unions a key and a value without the possibility of failure;
+    /// only applicable when unify values use `NoError` as their error
+    /// type.
+    pub fn union_value(&mut self, id: K, value: V)
+        where V: UnifyValue<Error = NoError>
+    {
+        self.unify_var_value(id, value).unwrap();
     }
 
     /// Given two keys, indicates whether they have been unioned together.
