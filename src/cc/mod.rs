@@ -9,7 +9,7 @@ use petgraph::graph::{Graph, NodeIndex};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
-use unify::{UnifyKey, UnifyValue, InfallibleUnifyValue, UnificationTable, UnionedKeys};
+use unify::{NoError, UnifyKey, UnifyValue, UnificationTable, UnionedKeys};
 
 #[cfg(test)]
 mod test;
@@ -92,7 +92,9 @@ impl UnifyKey for Token {
 }
 
 impl UnifyValue for KeyKind {
-    fn unify_values(&kind1: &Self, &kind2: &Self) -> Result<Self, (Self, Self)> {
+    type Error = NoError;
+
+    fn unify_values(&kind1: &Self, &kind2: &Self) -> Result<Self, NoError> {
         match (kind1, kind2) {
             (Generative, _) => Ok(Generative),
             (_, Generative) => Ok(Generative),
@@ -100,8 +102,6 @@ impl UnifyValue for KeyKind {
         }
     }
 }
-
-impl InfallibleUnifyValue for KeyKind {}
 
 impl<K: Key> CongruenceClosure<K> {
     pub fn new() -> CongruenceClosure<K> {

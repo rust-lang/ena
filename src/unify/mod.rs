@@ -22,10 +22,11 @@
 //! into sets, use the `Value` type of `()`.
 //!
 //! When you have keys with non-trivial values, you must also define
-//! how those values can be merged. If this merging is infallible, you
-//! should implement the `InfallibleUnifyValue` trait, which unlocks
-//! various more ergonomic methods (e.g., `union()` in place of
-//! `unify_var_var()`).
+//! how those values can be merged. As part of doing this, you can
+//! define the "error" type to return on error; if errors are not
+//! possible, use `NoError` (an uninstantiable struct). Using this
+//! type also unlocks various more ergonomic methods (e.g., `union()`
+//! in place of `unify_var_var()`).
 
 use std::marker;
 use std::fmt::Debug;
@@ -76,14 +77,63 @@ pub trait UnifyKey : Copy + Clone + Debug + PartialEq {
     }
 }
 
+/// Trait implemented for **values** associated with a unification
+/// key. This trait defines how to merge the values from two keys that
+/// are unioned together. This merging can be fallible. If you attempt
+/// to union two keys whose values cannot be merged, then the error is
+/// propagated up and the two keys are not unioned.
+///
+/// This crate provides implementations of `UnifyValue` for `()`
+/// (which is infallible) and `Option<T>` (where `T: UnifyValue`). The
+/// option implementation merges two sum-values using the `UnifyValue`
+/// implementation of `T`.
+///
+/// See also `EqUnifyValue`, which is a convenience trait for cases
+/// where the "merge" operation succeeds only if the two values are
+/// equal.
 pub trait UnifyValue: Clone + Debug {
+    /// Defines the type to return when merging of two values fails.
+    /// If merging is infallible, use the special struct `NoError`
+    /// found in this crate, which unlocks various more convenient
+    /// methods on the unification table.
+    type Error;
+
     /// Given two values, produce a new value that combines them.
     /// If that is not possible, produce an error.
-    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, (Self, Self)>;
+    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, Self::Error>;
 }
 
-/// Marker trait which indicates that `UnifyValues::unify_values` will never return `Err`.
-pub trait InfallibleUnifyValue: UnifyValue {
+/// A convenient helper for unification values which must be equal or
+/// else an error occurs. For example, if you are unifying types in a
+/// simple functional language, this may be appropriate, since (e.g.)
+/// you can't unify a type variable bound to `int` with one bound to
+/// `float` (but you can unify two type variables both bound to
+/// `int`).
+///
+/// Any type which implements `EqUnifyValue` automatially implements
+/// `UnifyValue`; if the two values are equal, merging is permitted.
+/// Otherwise, the error `(v1, v2)` is returned, where `v1` and `v2`
+/// are the two unequal values.
+pub trait EqUnifyValue: Eq + Clone + Debug {
+}
+
+impl<T: EqUnifyValue> UnifyValue for T {
+    type Error = (T, T);
+
+    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, Self::Error> {
+        if value1 == value2 {
+            Ok(value1.clone())
+        } else {
+            Err((value1.clone(), value2.clone()))
+        }
+    }
+}
+
+/// A struct which can never be instantiated. Used
+/// for the error type for infallible cases.
+#[derive(Debug)]
+pub struct NoError {
+    _dummy: ()
 }
 
 /// Value of a unification key. We implement Tarjan's union-find
@@ -393,7 +443,7 @@ impl<'tcx, K, V> UnificationTable<K>
     /// Unions two keys without the possibility of failure; only
     /// applicable to InfallibleUnifyValue.
     pub fn union(&mut self, a_id: K, b_id: K)
-        where V: InfallibleUnifyValue
+        where V: UnifyValue<Error = NoError>
     {
         self.unify_var_var(a_id, b_id).unwrap();
     }
@@ -408,7 +458,7 @@ impl<'tcx, K, V> UnificationTable<K>
         self.get_root_key(id)
     }
 
-    pub fn unify_var_var(&mut self, a_id: K, b_id: K) -> Result<(), (V, V)> {
+    pub fn unify_var_var(&mut self, a_id: K, b_id: K) -> Result<(), V::Error> {
         let root_a = self.get_root_key(a_id);
         let root_b = self.get_root_key(b_id);
 
@@ -423,7 +473,7 @@ impl<'tcx, K, V> UnificationTable<K>
 
     /// Sets the value of the key `a_id` to `b`, attempting to merge
     /// with the previous value.
-    pub fn unify_var_value(&mut self, a_id: K, b: V) -> Result<(), (V, V)> {
+    pub fn unify_var_value(&mut self, a_id: K, b: V) -> Result<(), V::Error> {
         let root_a = self.get_root_key(a_id);
         let value = try!(V::unify_values(&self.value(root_a).value, &b));
         self.update_value(root_a, |node| node.value = value);
@@ -440,28 +490,26 @@ impl<'tcx, K, V> UnificationTable<K>
 ///////////////////////////////////////////////////////////////////////////
 
 impl UnifyValue for () {
-    fn unify_values(_: &(), _: &()) -> Result<(), ((), ())> {
+    type Error = NoError;
+
+    fn unify_values(_: &(), _: &()) -> Result<(), NoError> {
         Ok(())
     }
 }
 
-impl InfallibleUnifyValue for () {
-}
-
 impl<V: UnifyValue> UnifyValue for Option<V> {
-    fn unify_values(a: &Option<V>, b: &Option<V>) -> Result<Self, (Self, Self)> {
+    type Error = V::Error;
+
+    fn unify_values(a: &Option<V>, b: &Option<V>) -> Result<Self, V::Error> {
         match (a, b) {
             (&None, &None) => Ok(None),
             (&Some(ref v), &None) | (&None, &Some(ref v)) => Ok(Some(v.clone())),
             (&Some(ref a), &Some(ref b)) => {
                 match V::unify_values(a, b) {
                     Ok(v) => Ok(Some(v)),
-                    Err((a, b)) => Err((Some(a), Some(b))),
+                    Err(err) => Err(err),
                 }
             }
         }
     }
-}
-
-impl<V: InfallibleUnifyValue> InfallibleUnifyValue for Option<V> {
 }

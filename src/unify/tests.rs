@@ -14,7 +14,7 @@ extern crate test;
 use self::test::Bencher;
 use std::collections::HashSet;
 use std::cmp;
-use unify::{UnifyKey, UnifyValue, UnificationTable, InfallibleUnifyValue};
+use unify::{NoError, UnifyKey, EqUnifyValue, UnifyValue, UnificationTable};
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 struct UnitKey(u32);
@@ -151,15 +151,7 @@ impl UnifyKey for IntKey {
     }
 }
 
-impl UnifyValue for i32 {
-    fn unify_values(&a: &i32, &b: &i32) -> Result<Self, (Self, Self)> {
-        if a == b {
-            Ok(a)
-        } else {
-            Err((a, b))
-        }
-    }
-}
+impl EqUnifyValue for i32 { }
 
 #[test]
 fn unify_same_int_twice() {
@@ -268,12 +260,12 @@ impl UnifyKey for OrderedKey {
 }
 
 impl UnifyValue for OrderedRank {
-    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, (Self, Self)> {
+    type Error = NoError;
+
+    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, NoError> {
         Ok(OrderedRank(cmp::max(value1.0, value2.0)))
     }
 }
-
-impl InfallibleUnifyValue for OrderedRank { }
 
 #[test]
 fn ordered_key() {
