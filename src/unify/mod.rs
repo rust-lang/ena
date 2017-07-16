@@ -262,7 +262,10 @@ impl<K: UnifyKey> UnificationTable<K> {
     }
 
     /// Returns an iterator over all keys unioned with `key`.
-    pub fn unioned_keys(&mut self, key: K) -> UnionedKeys<K> {
+    pub fn unioned_keys<K1>(&mut self, key: K1) -> UnionedKeys<K>
+        where K1: Into<K>
+    {
+        let key = key.into();
         let root_key = self.get_root_key(key);
         UnionedKeys {
             table: self,
@@ -455,8 +458,8 @@ impl<'tcx, K, V> UnificationTable<K>
     /// Unions two keys without the possibility of failure; only
     /// applicable when unify values use `NoError` as their error
     /// type.
-    pub fn union(&mut self, a_id: K, b_id: K)
-        where V: UnifyValue<Error = NoError>
+    pub fn union<K1,K2>(&mut self, a_id: K1, b_id: K2)
+        where K1: Into<K>, K2: Into<K>, V: UnifyValue<Error = NoError>,
     {
         self.unify_var_var(a_id, b_id).unwrap();
     }
@@ -464,26 +467,36 @@ impl<'tcx, K, V> UnificationTable<K>
     /// Unions a key and a value without the possibility of failure;
     /// only applicable when unify values use `NoError` as their error
     /// type.
-    pub fn union_value(&mut self, id: K, value: V)
-        where V: UnifyValue<Error = NoError>
+    pub fn union_value<K1>(&mut self, id: K1, value: V)
+        where K1: Into<K>, V: UnifyValue<Error = NoError>,
     {
         self.unify_var_value(id, value).unwrap();
     }
 
     /// Given two keys, indicates whether they have been unioned together.
-    pub fn unioned(&mut self, a_id: K, b_id: K) -> bool {
+    pub fn unioned<K1,K2>(&mut self, a_id: K1, b_id: K2) -> bool
+        where K1: Into<K>, K2: Into<K>,
+    {
         self.find(a_id) == self.find(b_id)
     }
 
     /// Given a key, returns the (current) root key.
-    pub fn find(&mut self, id: K) -> K {
+    pub fn find<K1>(&mut self, id: K1) -> K
+        where K1: Into<K>
+    {
+        let id = id.into();
         self.get_root_key(id)
     }
 
     /// Unions together two variables, merging their values. If
     /// merging the values fails, the error is propagated and this
     /// method has no effect.
-    pub fn unify_var_var(&mut self, a_id: K, b_id: K) -> Result<(), V::Error> {
+    pub fn unify_var_var<K1,K2>(&mut self, a_id: K1, b_id: K2) -> Result<(), V::Error>
+        where K1: Into<K>, K2: Into<K>,
+    {
+        let a_id = a_id.into();
+        let b_id = b_id.into();
+
         let root_a = self.get_root_key(a_id);
         let root_b = self.get_root_key(b_id);
 
@@ -498,7 +511,10 @@ impl<'tcx, K, V> UnificationTable<K>
 
     /// Sets the value of the key `a_id` to `b`, attempting to merge
     /// with the previous value.
-    pub fn unify_var_value(&mut self, a_id: K, b: V) -> Result<(), V::Error> {
+    pub fn unify_var_value<K1>(&mut self, a_id: K1, b: V) -> Result<(), V::Error>
+        where K1: Into<K>
+    {
+        let a_id = a_id.into();
         let root_a = self.get_root_key(a_id);
         let value = V::unify_values(&self.value(root_a).value, &b)?;
         self.update_value(root_a, |node| node.value = value);
@@ -507,7 +523,10 @@ impl<'tcx, K, V> UnificationTable<K>
 
     /// Returns the current value for the given key. If the key has
     /// been union'd, this will give the value from the current root.
-    pub fn probe_value(&mut self, id: K) -> V {
+    pub fn probe_value<K1>(&mut self, id: K1) -> V
+        where K1: Into<K>
+    {
+        let id = id.into();
         let id = self.get_root_key(id);
         self.value(id).value.clone()
     }
