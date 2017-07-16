@@ -10,6 +10,7 @@
 
 // The CC code uses `impl Trait`
 #![cfg_attr(feature = "congruence-closure", feature(conservative_impl_trait))]
+#![cfg_attr(feature = "bench", feature(test))]
 
 #[macro_use]
 extern crate log;

@@ -9,6 +9,7 @@ authors = ["Niko Matsakis <niko@alum.mit.edu>"]
 
 [features]
 congruence-closure = [ "petgraph" ]
+bench = [ ]
 
 [dependencies]
 log = "0.3"
