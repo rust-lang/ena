@@ -1,3 +1,5 @@
+#![cfg(feature = "congruence-closure")]
+
 //! An implementation of the Congruence Closure algorithm based on the
 //! paper "Fast Decision Procedures Based on Congruence Closure" by Nelson
 //! and Oppen, JACM 1980.
