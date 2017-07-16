@@ -113,7 +113,9 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
     }
 
     pub fn update<OP>(&mut self, index: usize, op: OP)
-        where OP: FnOnce(&mut D::Value), D::Value: Clone
+    where
+        OP: FnOnce(&mut D::Value),
+        D::Value: Clone,
     {
         if self.in_snapshot() {
             let old_elem = self.values[index].clone();
@@ -226,7 +228,10 @@ impl<D: SnapshotVecDelegate> ops::IndexMut<usize> for SnapshotVec<D> {
 }
 
 impl<D: SnapshotVecDelegate> Extend<D::Value> for SnapshotVec<D> {
-    fn extend<T>(&mut self, iterable: T) where T: IntoIterator<Item=D::Value> {
+    fn extend<T>(&mut self, iterable: T)
+    where
+        T: IntoIterator<Item = D::Value>,
+    {
         for item in iterable {
             self.push(item);
         }
@@ -234,7 +239,9 @@ impl<D: SnapshotVecDelegate> Extend<D::Value> for SnapshotVec<D> {
 }
 
 impl<D: SnapshotVecDelegate> Clone for SnapshotVec<D>
-    where D::Value: Clone, D::Undo: Clone,
+where
+    D::Value: Clone,
+    D::Undo: Clone,
 {
     fn clone(&self) -> Self {
         SnapshotVec {
@@ -245,7 +252,9 @@ impl<D: SnapshotVecDelegate> Clone for SnapshotVec<D>
 }
 
 impl<D: SnapshotVecDelegate> Clone for UndoLog<D>
-    where D::Value: Clone, D::Undo: Clone,
+where
+    D::Value: Clone,
+    D::Undo: Clone,
 {
     fn clone(&self) -> Self {
         match *self {
@@ -257,4 +266,3 @@ impl<D: SnapshotVecDelegate> Clone for UndoLog<D>
         }
     }
 }
-

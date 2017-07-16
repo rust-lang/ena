@@ -151,7 +151,7 @@ impl UnifyKey for IntKey {
     }
 }
 
-impl EqUnifyValue for i32 { }
+impl EqUnifyValue for i32 {}
 
 #[test]
 fn unify_same_int_twice() {
@@ -245,9 +245,12 @@ impl UnifyKey for OrderedKey {
     fn tag() -> &'static str {
         "OrderedKey"
     }
-    fn order_roots(a: OrderedKey, a_rank: &OrderedRank,
-                   b: OrderedKey, b_rank: &OrderedRank)
-                   -> Option<(OrderedKey, OrderedKey)> {
+    fn order_roots(
+        a: OrderedKey,
+        a_rank: &OrderedRank,
+        b: OrderedKey,
+        b_rank: &OrderedRank,
+    ) -> Option<(OrderedKey, OrderedKey)> {
         println!("{:?} vs {:?}", a_rank, b_rank);
         if a_rank > b_rank {
             Some((a, b))
@@ -306,8 +309,11 @@ fn ordered_key_k1() {
     ut.union(k1_5, k1_6); // rank of new root now 1
 
     ut.union(k0_1, k1_5); // even though k1 has lower rank, it wins
-    assert!(vec![k1_5, k1_6].contains(&ut.find(k0_1)),
-            "unexpected choice for root: {:?}", ut.find(k0_1));
+    assert!(
+        vec![k1_5, k1_6].contains(&ut.find(k0_1)),
+        "unexpected choice for root: {:?}",
+        ut.find(k0_1)
+    );
 }
 
 /// Test that we *can* clone.

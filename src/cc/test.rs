@@ -31,11 +31,9 @@ impl Key for Type {
         match **self {
             TypeStruct::Assoc(..) |
             TypeStruct::Variable(_) |
-            TypeStruct::Skolem(_) =>
-                KeyKind::Applicative,
+            TypeStruct::Skolem(_) => KeyKind::Applicative,
 
-            TypeStruct::Nominal(..) =>
-                KeyKind::Generative,
+            TypeStruct::Nominal(..) => KeyKind::Generative,
         }
     }
 
@@ -75,8 +73,9 @@ fn vec(t: Type) -> Type {
 }
 
 fn inference_var<'tcx>(cc: &mut CongruenceClosure<Type>) -> Type {
-    let token = cc.new_token(KeyKind::Applicative,
-                             move |token| Box::new(TypeStruct::Variable(token)));
+    let token = cc.new_token(KeyKind::Applicative, move |token| {
+        Box::new(TypeStruct::Variable(token))
+    });
     cc.key(token).clone()
 }
 
@@ -86,9 +85,18 @@ fn simple_as_it_gets() {
     assert!(cc.merged(skolem(0), skolem(0)));
     assert!(!cc.merged(skolem(0), skolem(1)));
     assert!(cc.merged(skolem(1), skolem(1)));
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(0))));
-    assert!(!cc.merged(iterator_item(skolem(0)), iterator_item(skolem(1))));
-    assert!(cc.merged(iterator_item(skolem(1)), iterator_item(skolem(1))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(0))
+    ));
+    assert!(!cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(1))
+    ));
+    assert!(cc.merged(
+        iterator_item(skolem(1)),
+        iterator_item(skolem(1))
+    ));
 }
 
 #[test]
@@ -115,7 +123,10 @@ fn union_direct() {
     cc.add(skolem(1));
 
     cc.merge(skolem(0), skolem(1));
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(1))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(1))
+    ));
 }
 
 macro_rules! indirect_test {
@@ -169,7 +180,10 @@ fn merged_no_add() {
 
     cc.merge(skolem(0), skolem(1));
 
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(1))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(1))
+    ));
 }
 
 // Here we determine that `Assoc(V0) == Assoc(V2)` because `V0==V1==V2`,
@@ -181,7 +195,10 @@ fn merged_no_add_indirect() {
     cc.merge(skolem(0), skolem(1));
     cc.merge(skolem(1), skolem(2));
 
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(2))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(2))
+    ));
 }
 
 // Here we determine that `Assoc(V0) == Assoc(V2)` because `V0==V1==V2`,
@@ -193,7 +210,10 @@ fn iterator_item_not_merged() {
     cc.merge(iterator_item(skolem(0)), iterator_item(skolem(1)));
 
     assert!(!cc.merged(skolem(0), skolem(1)));
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(1))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(1))
+    ));
 }
 
 // Here we show that merging `Assoc(V1) == Assoc(V2)` does NOT imply that
@@ -205,7 +225,10 @@ fn merge_fns_not_inputs() {
     cc.merge(iterator_item(skolem(0)), iterator_item(skolem(1)));
 
     assert!(!cc.merged(skolem(0), skolem(1)));
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(1))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(1))
+    ));
 }
 
 #[test]
@@ -223,12 +246,24 @@ fn inf_var_union() {
 
     assert!(cc.map.is_empty()); // inf variables don't take up map slots
 
-    assert!(cc.merged(iterator_item_v0.clone(), iterator_item_v1.clone()));
-    assert!(!cc.merged(iterator_item_v0.clone(), iterator_item_v2.clone()));
+    assert!(cc.merged(
+        iterator_item_v0.clone(),
+        iterator_item_v1.clone()
+    ));
+    assert!(!cc.merged(
+        iterator_item_v0.clone(),
+        iterator_item_v2.clone()
+    ));
 
     cc.merge(iterator_item_v0.clone(), iterator_item_v2.clone());
-    assert!(cc.merged(iterator_item_v0.clone(), iterator_item_v2.clone()));
-    assert!(cc.merged(iterator_item_v1.clone(), iterator_item_v2.clone()));
+    assert!(cc.merged(
+        iterator_item_v0.clone(),
+        iterator_item_v2.clone()
+    ));
+    assert!(cc.merged(
+        iterator_item_v1.clone(),
+        iterator_item_v2.clone()
+    ));
 
     assert_eq!(cc.map.len(), 3); // each iterator_item needs an entry
 }
@@ -249,12 +284,24 @@ fn skolem_union_no_add() {
     let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
     cc.merge(skolem(0), skolem(1));
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(1))));
-    assert!(!cc.merged(iterator_item(skolem(0)), iterator_item(skolem(2))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(1))
+    ));
+    assert!(!cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(2))
+    ));
 
     cc.merge(iterator_item(skolem(0)), iterator_item(skolem(2)));
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(2))));
-    assert!(cc.merged(iterator_item(skolem(1)), iterator_item(skolem(2))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(2))
+    ));
+    assert!(cc.merged(
+        iterator_item(skolem(1)),
+        iterator_item(skolem(2))
+    ));
 }
 
 #[test]
@@ -267,16 +314,27 @@ fn merged_keys() {
     // Here we don't yet see `iterator_item(skolem(1))` because it has no
     // corresponding node:
     let keys: Vec<Type> = cc.merged_keys(iterator_item(skolem(2))).collect();
-    assert_eq!(&keys[..], &[iterator_item(skolem(2)), iterator_item(skolem(0))]);
+    assert_eq!(
+        &keys[..],
+        &[iterator_item(skolem(2)), iterator_item(skolem(0))]
+    );
 
     // But of course `merged` returns true (and adds a node):
-    assert!(cc.merged(iterator_item(skolem(1)), iterator_item(skolem(2))));
+    assert!(cc.merged(
+        iterator_item(skolem(1)),
+        iterator_item(skolem(2))
+    ));
 
     // So now we see it:
     let keys: Vec<Type> = cc.merged_keys(iterator_item(skolem(2))).collect();
-    assert_eq!(&keys[..], &[iterator_item(skolem(2)),
-                            iterator_item(skolem(1)),
-                            iterator_item(skolem(0))]);
+    assert_eq!(
+        &keys[..],
+        &[
+            iterator_item(skolem(2)),
+            iterator_item(skolem(1)),
+            iterator_item(skolem(0))
+        ]
+    );
 }
 
 // Here we show that merging `Vec<V1> == Vec<V2>` DOES imply that
@@ -289,7 +347,10 @@ fn merge_vecs() {
 
     assert!(cc.merged(skolem(0), skolem(1)));
     assert!(cc.merged(vec(skolem(0)), vec(skolem(1))));
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(1))));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(1))
+    ));
 }
 
 // Here we show that merging `Vec<V1::Item> == Vec<V2::Item>` does NOT imply that
@@ -298,18 +359,26 @@ fn merge_vecs() {
 fn merge_vecs_of_items() {
     let mut cc: CongruenceClosure<Type> = CongruenceClosure::new();
 
-    cc.merge(vec(iterator_item(skolem(0))),
-             vec(iterator_item(skolem(1))));
+    cc.merge(vec(iterator_item(skolem(0))), vec(iterator_item(skolem(1))));
 
     assert!(!cc.merged(skolem(0), skolem(1)));
     assert!(!cc.merged(vec(skolem(0)), vec(skolem(1))));
-    assert!(cc.merged(vec(iterator_item(skolem(0))),
-                      vec(iterator_item(skolem(1)))));
-    assert!(cc.merged(iterator_item(vec(iterator_item(skolem(0)))),
-                      iterator_item(vec(iterator_item(skolem(1))))));
-    assert!(cc.merged(iterator_item(iterator_item(vec(iterator_item(skolem(0))))),
-                      iterator_item(iterator_item(vec(iterator_item(skolem(1)))))));
-    assert!(cc.merged(iterator_item(skolem(0)), iterator_item(skolem(1))));
+    assert!(cc.merged(
+        vec(iterator_item(skolem(0))),
+        vec(iterator_item(skolem(1)))
+    ));
+    assert!(cc.merged(
+        iterator_item(vec(iterator_item(skolem(0)))),
+        iterator_item(vec(iterator_item(skolem(1))))
+    ));
+    assert!(cc.merged(
+        iterator_item(iterator_item(vec(iterator_item(skolem(0))))),
+        iterator_item(iterator_item(vec(iterator_item(skolem(1)))))
+    ));
+    assert!(cc.merged(
+        iterator_item(skolem(0)),
+        iterator_item(skolem(1))
+    ));
 }
 
 // Here we merge `Vec<Int>::Item` with `Int` and then merge that later
@@ -322,7 +391,10 @@ fn merge_iterator_item_generative() {
     let v0 = inference_var(&mut cc);
     cc.merge(iterator_item(vec(integer())), v0.clone());
     assert!(cc.merged(v0.clone(), integer()));
-    assert!(cc.merged(vec(iterator_item(vec(integer()))), vec(integer())));
+    assert!(cc.merged(
+        vec(iterator_item(vec(integer()))),
+        vec(integer())
+    ));
 }
 
 #[test]
@@ -332,14 +404,21 @@ fn merge_ripple() {
     cc.merge(iterator_item(skolem(1)), vec(skolem(0)));
     cc.merge(iterator_item(skolem(2)), vec(integer()));
 
-    assert!(!cc.merged(iterator_item(skolem(1)), iterator_item(skolem(2))));
+    assert!(!cc.merged(
+        iterator_item(skolem(1)),
+        iterator_item(skolem(2))
+    ));
 
     println!("------------------------------");
     cc.merge(skolem(0), integer());
 
     println!("------------------------------");
-    assert!(cc.merged(iterator_item(skolem(1)),
-                      iterator_item(skolem(2))));
-    assert!(cc.merged(iterator_item(iterator_item(skolem(1))),
-                      iterator_item(iterator_item(skolem(2)))));
+    assert!(cc.merged(
+        iterator_item(skolem(1)),
+        iterator_item(skolem(2))
+    ));
+    assert!(cc.merged(
+        iterator_item(iterator_item(skolem(1))),
+        iterator_item(iterator_item(skolem(2)))
+    ));
 }

@@ -56,7 +56,9 @@ impl Token {
     }
 
     fn from_node(node: NodeIndex) -> Token {
-        Token { index: node.index() as u32 }
+        Token {
+            index: node.index() as u32,
+        }
     }
 
     fn node(&self) -> NodeIndex {
@@ -75,11 +77,12 @@ impl UnifyKey for Token {
     fn tag() -> &'static str {
         "CongruenceClosure"
     }
-    fn order_roots(a: Self,
-                   &a_value: &KeyKind,
-                   b: Self,
-                   &b_value: &KeyKind)
-                   -> Option<(Self, Self)> {
+    fn order_roots(
+        a: Self,
+        &a_value: &KeyKind,
+        b: Self,
+        &b_value: &KeyKind,
+    ) -> Option<(Self, Self)> {
         if a_value == b_value {
             None
         } else if a_value == Generative {
@@ -125,7 +128,8 @@ impl<K: Key> CongruenceClosure<K> {
     /// keys) or else things will not work right. This invariant is
     /// not currently checked.
     pub fn new_token<OP>(&mut self, key_kind: KeyKind, key_op: OP) -> Token
-        where OP: FnOnce(Token) -> K
+    where
+        OP: FnOnce(Token) -> K,
     {
         let token = self.table.new_key(key_kind);
         let key = key_op(token);
@@ -194,10 +198,7 @@ impl<K: Key> CongruenceClosure<K> {
         // example, if we are adding `Box<Foo>`, the successor would
         // be `Foo`.  So go ahead and recursively add `Foo` if it
         // doesn't already exist.
-        let successors: Vec<_> = key.successors()
-            .into_iter()
-            .map(|s| self.add(s))
-            .collect();
+        let successors: Vec<_> = key.successors().into_iter().map(|s| self.add(s)).collect();
 
         debug!("add: key={:?} successors={:?}", key, successors);
 
@@ -214,10 +215,12 @@ impl<K: Key> CongruenceClosure<K> {
             // this would be `Box<Bar>` in the above example.
             let predecessors: Vec<_> = self.algorithm().all_preds(successor);
 
-            debug!("add: key={:?} successor={:?} predecessors={:?}",
-                   key,
-                   successor,
-                   predecessors);
+            debug!(
+                "add: key={:?} successor={:?} predecessors={:?}",
+                key,
+                successor,
+                predecessors
+            );
 
             // add edge from new node `Box<Foo>` to its successor `Foo`
             self.graph.add_edge(token.node(), successor.node(), ());
@@ -246,8 +249,7 @@ impl<K: Key> CongruenceClosure<K> {
 
     /// Gets the token for a key, if any.
     fn get(&self, key: &K) -> Option<Token> {
-        key.to_token()
-            .or_else(|| self.map.get(key).cloned())
+        key.to_token().or_else(|| self.map.get(key).cloned())
     }
 
     /// Gets the token for a key, adding one if none exists. Returns the token
@@ -324,9 +326,11 @@ impl<'a, K: Key> Algorithm<'a, K> {
     }
 
     fn maybe_merge(&mut self, p_u: Token, p_v: Token) {
-        debug!("maybe_merge(): p_u={:?} p_v={:?}",
-               self.key(p_u),
-               self.key(p_v));
+        debug!(
+            "maybe_merge(): p_u={:?} p_v={:?}",
+            self.key(p_u),
+            self.key(p_v)
+        );
 
         if !self.unioned(p_u, p_v) && self.shallow_eq(p_u, p_v) && self.congruent(p_u, p_v) {
             self.merge(p_u, p_v);
@@ -346,10 +350,12 @@ impl<'a, K: Key> Algorithm<'a, K> {
             debug!("congruent: s_u={:?} s_v={:?}", s_u, s_v);
             self.unioned(s_u, s_v)
         });
-        debug!("congruent({:?}, {:?}) = {:?}",
-               self.key(p_u),
-               self.key(p_v),
-               r);
+        debug!(
+            "congruent({:?}, {:?}) = {:?}",
+            self.key(p_u),
+            self.key(p_v),
+            r
+        );
         r
     }
 
@@ -371,10 +377,12 @@ impl<'a, K: Key> Algorithm<'a, K> {
 
     fn unioned(&mut self, u: Token, v: Token) -> bool {
         let r = self.table.unioned(u, v);
-        debug!("unioned(u={:?}, v={:?}) = {:?}",
-               self.key(u),
-               self.key(v),
-               r);
+        debug!(
+            "unioned(u={:?}, v={:?}) = {:?}",
+            self.key(u),
+            self.key(v),
+            r
+        );
         r
     }
 
@@ -404,9 +412,11 @@ impl<'a, K: Key> Algorithm<'a, K> {
             } else {
                 // error: user asked us to union i32/u32 or Vec<T>/Vec<U>;
                 // for now just panic.
-                panic!("inconsistent conclusion: {:?} vs {:?}",
-                       self.key(u),
-                       self.key(v));
+                panic!(
+                    "inconsistent conclusion: {:?} vs {:?}",
+                    self.key(u),
+                    self.key(v)
+                );
             }
         }
     }
