@@ -252,6 +252,7 @@ impl<K: UnifyKey> UnificationTable<K> {
         self.values.commit(snapshot.snapshot);
     }
 
+    /// Creates a fresh key with the given value.
     pub fn new_key(&mut self, value: K::Value) -> K {
         let len = self.values.len();
         let key: K = UnifyKey::from_index(len as u32);
@@ -260,6 +261,7 @@ impl<K: UnifyKey> UnificationTable<K> {
         key
     }
 
+    /// Returns an iterator over all keys unioned with `key`.
     pub fn unioned_keys(&mut self, key: K) -> UnionedKeys<K> {
         let root_key = self.get_root_key(key);
         UnionedKeys {
@@ -268,6 +270,13 @@ impl<K: UnifyKey> UnificationTable<K> {
         }
     }
 
+    /// Returns the number of keys created so far.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Obtains the current value for a particular key.
+    /// Not for end-users; they can use `probe_value`.
     fn value(&self, key: K) -> &VarValue<K> {
         &self.values[key.index() as usize]
     }
@@ -344,13 +353,16 @@ impl<K: UnifyKey> UnificationTable<K> {
         }
     }
 
+    /// Internal method to redirect `old_root_key` (which is currently
+    /// a root) to a child of `new_root_key` (which will remain a
+    /// root). The rank and value of `new_root_key` will be updated to
+    /// `new_rank` and `new_value` respectively.
     fn redirect_root(&mut self,
                      new_rank: u32,
                      old_root_key: K,
                      new_root_key: K,
                      new_value: K::Value) {
-        let sibling = self.value(new_root_key).child(new_root_key)
-                                              .unwrap_or(old_root_key);
+        let sibling = self.value(new_root_key).child(new_root_key).unwrap_or(old_root_key);
         self.update_value(old_root_key, |old_root_value| {
             old_root_value.redirect(new_root_key, sibling);
         });
@@ -367,9 +379,9 @@ impl<K: UnifyKey> sv::SnapshotVecDelegate for Delegate<K> {
     fn reverse(_: &mut Vec<VarValue<K>>, _: ()) {}
 }
 
-/// ////////////////////////////////////////////////////////////////////////
-/// Iterator over keys that have been unioned together
-
+/// Iterator over keys that have been unioned together.
+///
+/// Returned by the `unioned_keys` method.
 pub struct UnionedKeys<'a, K>
     where K: UnifyKey + 'a,
           K::Value: 'a
@@ -458,6 +470,9 @@ impl<'tcx, K, V> UnificationTable<K>
         self.get_root_key(id)
     }
 
+    /// Unions together two variables, merging their values. If
+    /// merging the values fails, the error is propagated and this
+    /// method has no effect.
     pub fn unify_var_var(&mut self, a_id: K, b_id: K) -> Result<(), V::Error> {
         let root_a = self.get_root_key(a_id);
         let root_b = self.get_root_key(b_id);
@@ -466,7 +481,7 @@ impl<'tcx, K, V> UnificationTable<K>
             return Ok(());
         }
 
-        let combined = try!(V::unify_values(&self.value(root_a).value, &self.value(root_b).value));
+        let combined = V::unify_values(&self.value(root_a).value, &self.value(root_b).value)?;
 
         Ok(self.unify_roots(root_a, root_b, combined))
     }
@@ -475,11 +490,13 @@ impl<'tcx, K, V> UnificationTable<K>
     /// with the previous value.
     pub fn unify_var_value(&mut self, a_id: K, b: V) -> Result<(), V::Error> {
         let root_a = self.get_root_key(a_id);
-        let value = try!(V::unify_values(&self.value(root_a).value, &b));
+        let value = V::unify_values(&self.value(root_a).value, &b)?;
         self.update_value(root_a, |node| node.value = value);
         Ok(())
     }
 
+    /// Returns the current value for the given key. If the key has
+    /// been union'd, this will give the value from the current root.
     pub fn probe_value(&mut self, id: K) -> V {
         let id = self.get_root_key(id);
         self.value(id).value.clone()
