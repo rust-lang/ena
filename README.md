@@ -10,6 +10,16 @@ code.
 
 The name "ena" comes from the Greek word for "one".
 
+### Features
+
+By default, you just get the union-find implementation. You can
+also opt-in to the following experimental features:
+
+- `bench`: use to run benchmarks (`cargo bench --features bench`)
+- `congruence-closure`: opt-in to the congruence closure
+  implementation. This requires petgraph and is nightly only (since
+  it uses `impl Trait`).
+
 ### License
 
 Like rustc itself, this code is dual-licensed under the MIT and Apache
