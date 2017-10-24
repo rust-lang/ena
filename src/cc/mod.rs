@@ -9,14 +9,14 @@ use petgraph::graph::{Graph, NodeIndex};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
-use unify::{NoError, UnifyKey, UnifyValue, UnificationTable, UnionedKeys};
+use unify::{NoError, InPlace, InPlaceUnificationTable, UnifyKey, UnifyValue, UnionedKeys};
 
 #[cfg(test)]
 mod test;
 
 pub struct CongruenceClosure<K: Key> {
     map: HashMap<K, Token>,
-    table: UnificationTable<Token>,
+    table: InPlaceUnificationTable<Token>,
     graph: Graph<K, ()>,
 }
 
@@ -110,7 +110,7 @@ impl<K: Key> CongruenceClosure<K> {
     pub fn new() -> CongruenceClosure<K> {
         CongruenceClosure {
             map: HashMap::new(),
-            table: UnificationTable::new(),
+            table: InPlaceUnificationTable::new(),
             graph: Graph::new(),
         }
     }
@@ -276,7 +276,7 @@ impl<K: Key> CongruenceClosure<K> {
 
 pub struct MergedKeys<'cc, K: Key + 'cc> {
     graph: &'cc Graph<K, ()>,
-    iterator: UnionedKeys<'cc, Token>,
+    iterator: UnionedKeys<'cc, InPlace<Token>>,
 }
 
 impl<'cc, K: Key> Iterator for MergedKeys<'cc, K> {
@@ -293,7 +293,7 @@ impl<'cc, K: Key> Iterator for MergedKeys<'cc, K> {
 
 struct Algorithm<'a, K: Key + 'a> {
     graph: &'a Graph<K, ()>,
-    table: &'a mut UnificationTable<Token>,
+    table: &'a mut InPlaceUnificationTable<Token>,
 }
 
 impl<'a, K: Key> Algorithm<'a, K> {
