@@ -44,30 +44,37 @@ impl<K: UnifyKey> UnificationStore for InPlace<K> {
     type Value = K::Value;
     type Snapshot = sv::Snapshot;
 
+    #[inline]
     fn new() -> Self {
         InPlace { values: sv::SnapshotVec::new() }
     }
 
+    #[inline]
     fn start_snapshot(&mut self) -> Self::Snapshot {
         self.values.start_snapshot()
     }
 
+    #[inline]
     fn rollback_to(&mut self, snapshot: Self::Snapshot) {
         self.values.rollback_to(snapshot);
     }
 
+    #[inline]
     fn commit(&mut self, snapshot: Self::Snapshot) {
         self.values.commit(snapshot);
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.values.len()
     }
 
+    #[inline]
     fn push(&mut self, value: VarValue<Self::Key>) {
         self.values.push(value);
     }
 
+    #[inline]
     fn update<F>(&mut self, index: usize, op: F)
         where F: FnOnce(&mut VarValue<Self::Key>)
     {
@@ -106,29 +113,36 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
     type Value = K::Value;
     type Snapshot = Self;
 
+    #[inline]
     fn new() -> Self {
         Persistent { values: DVec::new() }
     }
 
+    #[inline]
     fn start_snapshot(&mut self) -> Self::Snapshot {
         self.clone()
     }
 
+    #[inline]
     fn rollback_to(&mut self, snapshot: Self::Snapshot) {
         *self = snapshot;
     }
 
+    #[inline]
     fn commit(&mut self, _snapshot: Self::Snapshot) {
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.values.len()
     }
 
+    #[inline]
     fn push(&mut self, value: VarValue<Self::Key>) {
         self.values.push(value);
     }
 
+    #[inline]
     fn update<F>(&mut self, index: usize, op: F)
         where F: FnOnce(&mut VarValue<Self::Key>)
     {
