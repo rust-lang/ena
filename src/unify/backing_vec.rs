@@ -9,6 +9,9 @@ use super::{VarValue, UnifyKey, UnifyValue};
 #[allow(dead_code)] // rustc BUG
 type Key<S> = <S as UnificationStore>::Key;
 
+/// Largely internal trait implemented by the unification table
+/// backing store types. The most common such type is `InPlace`,
+/// which indicates a standard, mutable unification table.
 pub trait UnificationStore: ops::Index<usize, Output = VarValue<Key<Self>>> + Clone {
     type Key: UnifyKey<Value = Self::Value>;
     type Value: UnifyValue;
@@ -34,6 +37,8 @@ pub trait UnificationStore: ops::Index<usize, Output = VarValue<Key<Self>>> + Cl
     }
 }
 
+/// Backing store for an in-place unification table.
+/// Not typically used directly.
 #[derive(Clone)]
 pub struct InPlace<K: UnifyKey> {
     values: sv::SnapshotVec<Delegate<K>>

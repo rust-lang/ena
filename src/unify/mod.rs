@@ -27,6 +27,9 @@
 //! possible, use `NoError` (an uninstantiable struct). Using this
 //! type also unlocks various more ergonomic methods (e.g., `union()`
 //! in place of `unify_var_var()`).
+//!
+//! The best way to see how it is used is to read [the `tests.rs` file](tests.rs);
+//! search for e.g. `UnitKey`.
 
 use std::marker;
 use std::fmt::Debug;
@@ -160,7 +163,19 @@ pub struct VarValue<K: UnifyKey> { // FIXME pub
     rank: u32, // max depth (only relevant to root)
 }
 
-/// Table of unification keys and their values.
+/// Table of unification keys and their values. You must define a key type K
+/// that implements the `UnifyKey` trait. Unification tables can be used in two-modes:
+///
+/// - in-place (`UnificationTable<InPlace<K>>` or `InPlaceUnificationTable<K>`):
+///   - This is the standard mutable mode, where the array is modified
+///     in place.
+///   - To do backtracking, you can employ the `snapshot` and `rollback_to`
+///     methods.
+/// - persistent (`UnificationTable<Persistent<K>>` or `PersistentUnificationTable<K>`):
+///   - In this mode, we use a persistent vector to store the data, so that
+///     cloning the table is an O(1) operation.
+///   - This implies that ordinary operations are quite a bit slower though.
+///   - Requires the `persistent` feature be selected in your Cargo.toml file.
 #[derive(Clone)]
 pub struct UnificationTable<S: UnificationStore> {
     /// Indicates the current value of each key.
