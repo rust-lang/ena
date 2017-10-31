@@ -3,3 +3,4 @@ rust:
   - nightly
 script:
   - cargo test
+  - cargo test --all-features
