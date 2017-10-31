@@ -1,6 +1,9 @@
 language: rust
 rust:
+  - stable
   - nightly
 script:
   - cargo test
-  - cargo test --all-features
+  - |
+    [ $TRAVIS_RUST_VERSION != nightly ] ||
+    cargo test --all-features
