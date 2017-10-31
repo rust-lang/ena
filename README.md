@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/nikomatsakis/rayon.svg?branch=master)](https://travis-ci.org/nikomatsakis/ena)
+[![Build Status](https://travis-ci.org/nikomatsakis/ena.svg?branch=master)](https://travis-ci.org/nikomatsakis/ena)
 
 An implementation of union-find / congruence-closure in Rust. Forked
 from rustc for independent experimentation. My intention is to iterate
