@@ -100,6 +100,7 @@ pub struct Persistent<K: UnifyKey> {
     values: DVec<VarValue<K>>
 }
 
+#[cfg(feature = "persistent")]
 impl<K: UnifyKey> UnificationStore for Persistent<K> {
     type Key = K;
     type Value = K::Value;
@@ -136,6 +137,7 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
     }
 }
 
+#[cfg(feature = "persistent")]
 impl<K> ops::Index<usize> for Persistent<K>
     where K: UnifyKey
 {

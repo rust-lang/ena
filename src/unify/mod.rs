@@ -171,6 +171,7 @@ pub struct UnificationTable<S: UnificationStore> {
 pub type InPlaceUnificationTable<K> = UnificationTable<InPlace<K>>;
 
 /// A unification table that uses a "persistent" vector.
+#[cfg(feature = "persistent")]
 pub type PersistentUnificationTable<K> = UnificationTable<Persistent<K>>;
 
 /// At any time, users may snapshot a unification table.  The changes
