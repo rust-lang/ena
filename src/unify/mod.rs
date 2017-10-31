@@ -27,11 +27,19 @@
 //! possible, use `NoError` (an uninstantiable struct). Using this
 //! type also unlocks various more ergonomic methods (e.g., `union()`
 //! in place of `unify_var_var()`).
+//!
+//! The best way to see how it is used is to read [the `tests.rs` file](tests.rs);
+//! search for e.g. `UnitKey`.
 
 use std::marker;
 use std::fmt::Debug;
-use std::marker::PhantomData;
-use snapshot_vec as sv;
+
+mod backing_vec;
+pub use self::backing_vec::{InPlace, UnificationStore};
+
+#[cfg(feature = "persistent")]
+pub use self::backing_vec::Persistent;
+
 
 #[cfg(test)]
 mod tests;
@@ -147,7 +155,7 @@ pub struct NoError {
 /// time of the algorithm under control. For more information, see
 /// <http://en.wikipedia.org/wiki/Disjoint-set_data_structure>.
 #[derive(PartialEq, Clone, Debug)]
-struct VarValue<K: UnifyKey> {
+pub struct VarValue<K: UnifyKey> { // FIXME pub
     parent: K, // if equal to self, this is a root
     value: K::Value, // value assigned (only relevant to root)
     child: K, // if equal to self, no child (relevant to both root/redirect)
@@ -155,23 +163,39 @@ struct VarValue<K: UnifyKey> {
     rank: u32, // max depth (only relevant to root)
 }
 
-/// Table of unification keys and their values.
+/// Table of unification keys and their values. You must define a key type K
+/// that implements the `UnifyKey` trait. Unification tables can be used in two-modes:
+///
+/// - in-place (`UnificationTable<InPlace<K>>` or `InPlaceUnificationTable<K>`):
+///   - This is the standard mutable mode, where the array is modified
+///     in place.
+///   - To do backtracking, you can employ the `snapshot` and `rollback_to`
+///     methods.
+/// - persistent (`UnificationTable<Persistent<K>>` or `PersistentUnificationTable<K>`):
+///   - In this mode, we use a persistent vector to store the data, so that
+///     cloning the table is an O(1) operation.
+///   - This implies that ordinary operations are quite a bit slower though.
+///   - Requires the `persistent` feature be selected in your Cargo.toml file.
 #[derive(Clone)]
-pub struct UnificationTable<K: UnifyKey> {
+pub struct UnificationTable<S: UnificationStore> {
     /// Indicates the current value of each key.
-    values: sv::SnapshotVec<Delegate<K>>,
+    values: S,
 }
+
+/// A unification table that uses an "in-place" vector.
+pub type InPlaceUnificationTable<K> = UnificationTable<InPlace<K>>;
+
+/// A unification table that uses a "persistent" vector.
+#[cfg(feature = "persistent")]
+pub type PersistentUnificationTable<K> = UnificationTable<Persistent<K>>;
 
 /// At any time, users may snapshot a unification table.  The changes
 /// made during the snapshot may either be *committed* or *rolled back*.
-pub struct Snapshot<K: UnifyKey> {
-    // Link snapshot to the key type `K` of the table.
-    marker: marker::PhantomData<K>,
-    snapshot: sv::Snapshot,
+pub struct Snapshot<S: UnificationStore> {
+    // Link snapshot to the unification store `S` of the table.
+    marker: marker::PhantomData<S>,
+    snapshot: S::Snapshot,
 }
-
-#[derive(Copy, Clone)]
-struct Delegate<K>(PhantomData<K>);
 
 impl<K: UnifyKey> VarValue<K> {
     fn new_var(key: K, value: K::Value) -> VarValue<K> {
@@ -226,49 +250,49 @@ impl<K: UnifyKey> VarValue<K> {
 // other type parameter U, and we have no way to say
 // Option<U>:LatticeValue.
 
-impl<K: UnifyKey> UnificationTable<K> {
-    pub fn new() -> UnificationTable<K> {
+impl<S: UnificationStore> UnificationTable<S> {
+    pub fn new() -> Self {
         UnificationTable {
-            values: sv::SnapshotVec::new(),
+            values: S::new()
         }
     }
 
     /// Starts a new snapshot. Each snapshot must be either
     /// rolled back or committed in a "LIFO" (stack) order.
-    pub fn snapshot(&mut self) -> Snapshot<K> {
+    pub fn snapshot(&mut self) -> Snapshot<S> {
         Snapshot {
-            marker: marker::PhantomData::<K>,
+            marker: marker::PhantomData::<S>,
             snapshot: self.values.start_snapshot(),
         }
     }
 
     /// Reverses all changes since the last snapshot. Also
     /// removes any keys that have been created since then.
-    pub fn rollback_to(&mut self, snapshot: Snapshot<K>) {
-        debug!("{}: rollback_to()", K::tag());
+    pub fn rollback_to(&mut self, snapshot: Snapshot<S>) {
+        debug!("{}: rollback_to()", S::tag());
         self.values.rollback_to(snapshot.snapshot);
     }
 
     /// Commits all changes since the last snapshot. Of course, they
     /// can still be undone if there is a snapshot further out.
-    pub fn commit(&mut self, snapshot: Snapshot<K>) {
-        debug!("{}: commit()", K::tag());
+    pub fn commit(&mut self, snapshot: Snapshot<S>) {
+        debug!("{}: commit()", S::tag());
         self.values.commit(snapshot.snapshot);
     }
 
     /// Creates a fresh key with the given value.
-    pub fn new_key(&mut self, value: K::Value) -> K {
+    pub fn new_key(&mut self, value: S::Value) -> S::Key {
         let len = self.values.len();
-        let key: K = UnifyKey::from_index(len as u32);
+        let key: S::Key = UnifyKey::from_index(len as u32);
         self.values.push(VarValue::new_var(key, value));
-        debug!("{}: created new key: {:?}", K::tag(), key);
+        debug!("{}: created new key: {:?}", S::tag(), key);
         key
     }
 
     /// Returns an iterator over all keys unioned with `key`.
-    pub fn unioned_keys<K1>(&mut self, key: K1) -> UnionedKeys<K>
+    pub fn unioned_keys<K1>(&mut self, key: K1) -> UnionedKeys<S>
     where
-        K1: Into<K>,
+        K1: Into<S::Key>,
     {
         let key = key.into();
         let root_key = self.get_root_key(key);
@@ -285,7 +309,7 @@ impl<K: UnifyKey> UnificationTable<K> {
 
     /// Obtains the current value for a particular key.
     /// Not for end-users; they can use `probe_value`.
-    fn value(&self, key: K) -> &VarValue<K> {
+    fn value(&self, key: S::Key) -> &VarValue<S::Key> {
         &self.values[key.index() as usize]
     }
 
@@ -295,7 +319,7 @@ impl<K: UnifyKey> UnificationTable<K> {
     ///
     /// NB. This is a building-block operation and you would probably
     /// prefer to call `probe` below.
-    fn get_root_key(&mut self, vid: K) -> K {
+    fn get_root_key(&mut self, vid: S::Key) -> S::Key {
         let redirect = {
             match self.value(vid).parent(vid) {
                 None => return vid,
@@ -303,7 +327,7 @@ impl<K: UnifyKey> UnificationTable<K> {
             }
         };
 
-        let root_key: K = self.get_root_key(redirect);
+        let root_key: S::Key = self.get_root_key(redirect);
         if root_key != redirect {
             // Path compression
             self.update_value(vid, |value| value.parent = root_key);
@@ -312,9 +336,9 @@ impl<K: UnifyKey> UnificationTable<K> {
         root_key
     }
 
-    fn update_value<OP>(&mut self, key: K, op: OP)
+    fn update_value<OP>(&mut self, key: S::Key, op: OP)
     where
-        OP: FnOnce(&mut VarValue<K>),
+        OP: FnOnce(&mut VarValue<S::Key>),
     {
         self.values.update(key.index() as usize, op);
         debug!("Updated variable {:?} to {:?}", key, self.value(key));
@@ -328,13 +352,13 @@ impl<K: UnifyKey> UnificationTable<K> {
     /// really more of a building block. If the values associated with
     /// your key are non-trivial, you would probably prefer to call
     /// `unify_var_var` below.
-    fn unify_roots(&mut self, key_a: K, key_b: K, new_value: K::Value) {
+    fn unify_roots(&mut self, key_a: S::Key, key_b: S::Key, new_value: S::Value) {
         debug!("unify(key_a={:?}, key_b={:?})", key_a, key_b);
 
         let rank_a = self.value(key_a).rank;
         let rank_b = self.value(key_b).rank;
         if let Some((new_root, redirected)) =
-            K::order_roots(
+            S::Key::order_roots(
                 key_a,
                 &self.value(key_a).value,
                 key_b,
@@ -380,9 +404,9 @@ impl<K: UnifyKey> UnificationTable<K> {
     fn redirect_root(
         &mut self,
         new_rank: u32,
-        old_root_key: K,
-        new_root_key: K,
-        new_value: K::Value,
+        old_root_key: S::Key,
+        new_root_key: S::Key,
+        new_value: S::Value,
     ) {
         let sibling = self.value(new_root_key)
             .child(new_root_key)
@@ -396,43 +420,39 @@ impl<K: UnifyKey> UnificationTable<K> {
     }
 }
 
-impl<K: UnifyKey> sv::SnapshotVecDelegate for Delegate<K> {
-    type Value = VarValue<K>;
-    type Undo = ();
-
-    fn reverse(_: &mut Vec<VarValue<K>>, _: ()) {}
-}
-
 /// Iterator over keys that have been unioned together.
 ///
 /// Returned by the `unioned_keys` method.
-pub struct UnionedKeys<'a, K>
-where
-    K: UnifyKey + 'a,
-    K::Value: 'a,
+pub struct UnionedKeys<'a, S>
+    where
+    S: UnificationStore + 'a,
+    S::Key: 'a,
+    S::Value: 'a,
 {
-    table: &'a mut UnificationTable<K>,
-    stack: Vec<K>,
+    table: &'a mut UnificationTable<S>,
+    stack: Vec<S::Key>,
 }
 
-impl<'a, K> UnionedKeys<'a, K>
-where
-    K: UnifyKey,
-    K::Value: 'a,
+impl<'a, S> UnionedKeys<'a, S>
+    where
+    S: UnificationStore + 'a,
+    S::Key: 'a,
+    S::Value: 'a,
 {
-    fn var_value(&self, key: K) -> VarValue<K> {
+    fn var_value(&self, key: S::Key) -> VarValue<S::Key> {
         self.table.value(key).clone()
     }
 }
 
-impl<'a, K: 'a> Iterator for UnionedKeys<'a, K>
-where
-    K: UnifyKey,
-    K::Value: 'a,
+impl<'a, S: 'a> Iterator for UnionedKeys<'a, S>
+    where
+    S: UnificationStore + 'a,
+    S::Key: 'a,
+    S::Value: 'a,
 {
-    type Item = K;
+    type Item = S::Key;
 
-    fn next(&mut self) -> Option<K> {
+    fn next(&mut self) -> Option<S::Key> {
         let key = match self.stack.last() {
             Some(k) => *k,
             None => {
@@ -475,8 +495,9 @@ where
 /// ////////////////////////////////////////////////////////////////////////
 /// Public API
 
-impl<'tcx, K, V> UnificationTable<K>
+impl<'tcx, S, K, V> UnificationTable<S>
 where
+    S: UnificationStore<Key = K, Value = V>,
     K: UnifyKey<Value = V>,
     V: UnifyValue,
 {

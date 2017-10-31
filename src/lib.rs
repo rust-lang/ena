@@ -20,6 +20,9 @@
 #[macro_use]
 extern crate log;
 
+#[cfg(feature = "persistent")]
+extern crate dogged;
+
 #[cfg(feature = "congruence-closure")]
 extern crate petgraph;
 
