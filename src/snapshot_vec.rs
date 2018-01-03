@@ -21,9 +21,11 @@
 
 use self::UndoLog::*;
 
+use std::fmt;
 use std::mem;
 use std::ops;
 
+#[derive(Debug)]
 pub enum UndoLog<D: SnapshotVecDelegate> {
     /// Indicates where a snapshot started.
     OpenSnapshot,
@@ -44,6 +46,20 @@ pub enum UndoLog<D: SnapshotVecDelegate> {
 pub struct SnapshotVec<D: SnapshotVecDelegate> {
     values: Vec<D::Value>,
     undo_log: Vec<UndoLog<D>>,
+}
+
+impl<D> fmt::Debug for SnapshotVec<D>
+    where D: SnapshotVecDelegate,
+          D: fmt::Debug,
+          D::Undo: fmt::Debug,
+          D::Value: fmt::Debug
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("SnapshotVec")
+            .field("values", &self.values)
+            .field("undo_log", &self.undo_log)
+            .finish()
+    }
 }
 
 // Snapshots are tokens that should be created/consumed linearly.

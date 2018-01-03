@@ -39,7 +39,7 @@ pub trait UnificationStore: ops::Index<usize, Output = VarValue<Key<Self>>> + Cl
 
 /// Backing store for an in-place unification table.
 /// Not typically used directly.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct InPlace<K: UnifyKey> {
     values: sv::SnapshotVec<Delegate<K>>
 }
@@ -96,7 +96,7 @@ impl<K> ops::Index<usize> for InPlace<K>
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct Delegate<K>(PhantomData<K>);
 
 impl<K: UnifyKey> sv::SnapshotVecDelegate for Delegate<K> {
@@ -107,7 +107,7 @@ impl<K: UnifyKey> sv::SnapshotVecDelegate for Delegate<K> {
 }
 
 #[cfg(feature = "persistent")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Persistent<K: UnifyKey> {
     values: DVec<VarValue<K>>
 }
