@@ -176,7 +176,7 @@ pub struct VarValue<K: UnifyKey> { // FIXME pub
 ///     cloning the table is an O(1) operation.
 ///   - This implies that ordinary operations are quite a bit slower though.
 ///   - Requires the `persistent` feature be selected in your Cargo.toml file.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct UnificationTable<S: UnificationStore> {
     /// Indicates the current value of each key.
     values: S,
