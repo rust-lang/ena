@@ -16,7 +16,6 @@
 extern crate test;
 #[cfg(feature = "bench")]
 use self::test::Bencher;
-use std::collections::HashSet;
 use std::cmp;
 use unify::{NoError, InPlace, InPlaceUnificationTable, UnifyKey, EqUnifyValue, UnifyValue};
 use unify::{UnificationStore, UnificationTable};
@@ -227,34 +226,6 @@ fn even_odd() {
 
             for i in 2..MAX {
                 assert!(ut.unioned(keys[i - 2], keys[i]));
-            }
-        }
-    }
-}
-
-#[test]
-fn even_odd_iter() {
-    all_modes! {
-        S for UnitKey => {
-            let mut ut: UnificationTable<S> = UnificationTable::new();
-            let mut keys = Vec::new();
-            const MAX: usize = 1 << 10;
-
-            for i in 0..MAX {
-                let key = ut.new_key(());
-                keys.push(key);
-
-                if i >= 2 {
-                    ut.union(key, keys[i - 2]);
-                }
-            }
-
-            let even_keys: HashSet<UnitKey> = ut.unioned_keys(keys[22]).collect();
-
-            assert_eq!(even_keys.len(), MAX / 2);
-
-            for key in even_keys {
-                assert!((key.0 & 1) == 0);
             }
         }
     }
