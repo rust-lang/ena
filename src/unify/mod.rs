@@ -158,8 +158,6 @@ pub struct NoError {
 pub struct VarValue<K: UnifyKey> { // FIXME pub
     parent: K, // if equal to self, this is a root
     value: K::Value, // value assigned (only relevant to root)
-    child: K, // if equal to self, no child (relevant to both root/redirect)
-    sibling: K, // if equal to self, no sibling (only relevant to redirect)
     rank: u32, // max depth (only relevant to root)
 }
 
@@ -199,41 +197,28 @@ pub struct Snapshot<S: UnificationStore> {
 
 impl<K: UnifyKey> VarValue<K> {
     fn new_var(key: K, value: K::Value) -> VarValue<K> {
-        VarValue::new(key, value, key, key, 0)
+        VarValue::new(key, value, 0)
     }
 
-    fn new(parent: K, value: K::Value, child: K, sibling: K, rank: u32) -> VarValue<K> {
+    fn new(parent: K, value: K::Value, rank: u32) -> VarValue<K> {
         VarValue {
             parent: parent, // this is a root
             value: value,
-            child: child,
-            sibling: sibling,
             rank: rank,
         }
     }
 
-    fn redirect(&mut self, to: K, sibling: K) {
-        assert_eq!(self.parent, self.sibling); // ...since this used to be a root
+    fn redirect(&mut self, to: K) {
         self.parent = to;
-        self.sibling = sibling;
     }
 
-    fn root(&mut self, rank: u32, child: K, value: K::Value) {
+    fn root(&mut self, rank: u32, value: K::Value) {
         self.rank = rank;
-        self.child = child;
         self.value = value;
     }
 
     fn parent(&self, self_key: K) -> Option<K> {
         self.if_not_self(self.parent, self_key)
-    }
-
-    fn child(&self, self_key: K) -> Option<K> {
-        self.if_not_self(self.child, self_key)
-    }
-
-    fn sibling(&self, self_key: K) -> Option<K> {
-        self.if_not_self(self.sibling, self_key)
     }
 
     fn if_not_self(&self, key: K, self_key: K) -> Option<K> {
@@ -287,19 +272,6 @@ impl<S: UnificationStore> UnificationTable<S> {
         self.values.push(VarValue::new_var(key, value));
         debug!("{}: created new key: {:?}", S::tag(), key);
         key
-    }
-
-    /// Returns an iterator over all keys unioned with `key`.
-    pub fn unioned_keys<K1>(&mut self, key: K1) -> UnionedKeys<S>
-    where
-        K1: Into<S::Key>,
-    {
-        let key = key.into();
-        let root_key = self.get_root_key(key);
-        UnionedKeys {
-            table: self,
-            stack: vec![root_key],
-        }
     }
 
     /// Returns the number of keys created so far.
@@ -408,87 +380,12 @@ impl<S: UnificationStore> UnificationTable<S> {
         new_root_key: S::Key,
         new_value: S::Value,
     ) {
-        let sibling = self.value(new_root_key)
-            .child(new_root_key)
-            .unwrap_or(old_root_key);
         self.update_value(old_root_key, |old_root_value| {
-            old_root_value.redirect(new_root_key, sibling);
+            old_root_value.redirect(new_root_key);
         });
         self.update_value(new_root_key, |new_root_value| {
-            new_root_value.root(new_rank, old_root_key, new_value);
+            new_root_value.root(new_rank, new_value);
         });
-    }
-}
-
-/// Iterator over keys that have been unioned together.
-///
-/// Returned by the `unioned_keys` method.
-pub struct UnionedKeys<'a, S>
-    where
-    S: UnificationStore + 'a,
-    S::Key: 'a,
-    S::Value: 'a,
-{
-    table: &'a mut UnificationTable<S>,
-    stack: Vec<S::Key>,
-}
-
-impl<'a, S> UnionedKeys<'a, S>
-    where
-    S: UnificationStore + 'a,
-    S::Key: 'a,
-    S::Value: 'a,
-{
-    fn var_value(&self, key: S::Key) -> VarValue<S::Key> {
-        self.table.value(key).clone()
-    }
-}
-
-impl<'a, S: 'a> Iterator for UnionedKeys<'a, S>
-    where
-    S: UnificationStore + 'a,
-    S::Key: 'a,
-    S::Value: 'a,
-{
-    type Item = S::Key;
-
-    fn next(&mut self) -> Option<S::Key> {
-        let key = match self.stack.last() {
-            Some(k) => *k,
-            None => {
-                return None;
-            }
-        };
-
-        let vv = self.var_value(key);
-
-        match vv.child(key) {
-            Some(child_key) => {
-                self.stack.push(child_key);
-            }
-
-            None => {
-                // No child, push a sibling for the current node.  If
-                // current node has no siblings, start popping
-                // ancestors until we find an aunt or uncle or
-                // something to push. Note that we have the invariant
-                // that for every node N that we reach by popping
-                // items off of the stack, we have already visited all
-                // children of N.
-                while let Some(ancestor_key) = self.stack.pop() {
-                    let ancestor_vv = self.var_value(ancestor_key);
-                    match ancestor_vv.sibling(ancestor_key) {
-                        Some(sibling) => {
-                            self.stack.push(sibling);
-                            break;
-                        }
-                        None => {}
-                    }
-                }
-            }
-        }
-
-        Some(key)
     }
 }
 
