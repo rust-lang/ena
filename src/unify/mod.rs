@@ -28,7 +28,7 @@
 //! type also unlocks various more ergonomic methods (e.g., `union()`
 //! in place of `unify_var_var()`).
 //!
-//! The best way to see how it is used is to read [the `tests.rs` file](tests.rs);
+//! The best way to see how it is used is to read the `tests.rs` file;
 //! search for e.g. `UnitKey`.
 
 use std::marker;
