@@ -29,6 +29,8 @@ pub trait UnificationStore: ops::Index<usize, Output = VarValue<Key<Self>>> + Cl
 
     fn push(&mut self, value: VarValue<Self::Key>);
 
+    fn reserve(&mut self, num_new_values: usize);
+
     fn update<F>(&mut self, index: usize, op: F)
         where F: FnOnce(&mut VarValue<Self::Key>);
 
@@ -77,6 +79,11 @@ impl<K: UnifyKey> UnificationStore for InPlace<K> {
     #[inline]
     fn push(&mut self, value: VarValue<Self::Key>) {
         self.values.push(value);
+    }
+
+    #[inline]
+    fn reserve(&mut self, num_new_values: usize) {
+        self.values.reserve(num_new_values);
     }
 
     #[inline]
@@ -145,6 +152,11 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
     #[inline]
     fn push(&mut self, value: VarValue<Self::Key>) {
         self.values.push(value);
+    }
+
+    #[inline]
+    fn reserve(&mut self, _num_new_values: usize) {
+        // not obviously relevant to DVec.
     }
 
     #[inline]

@@ -119,6 +119,12 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         &self.values[index]
     }
 
+    /// Reserve space for new values, just like an ordinary vec.
+    pub fn reserve(&mut self, additional: usize) {
+        // This is not affected by snapshots or anything.
+        self.values.reserve(additional);
+    }
+
     /// Returns a mutable pointer into the vec; whatever changes you make here cannot be undone
     /// automatically, so you should be sure call `record()` with some sort of suitable undo
     /// action.
