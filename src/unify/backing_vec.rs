@@ -25,6 +25,11 @@ pub trait UnificationStore: ops::Index<usize, Output = VarValue<Key<Self>>> + Cl
 
     fn commit(&mut self, snapshot: Self::Snapshot);
 
+    fn reset_unifications(
+        &mut self,
+        value: impl FnMut(u32) -> VarValue<Self::Key>,
+    );
+
     fn len(&self) -> usize;
 
     fn push(&mut self, value: VarValue<Self::Key>);
@@ -69,6 +74,14 @@ impl<K: UnifyKey> UnificationStore for InPlace<K> {
     #[inline]
     fn commit(&mut self, snapshot: Self::Snapshot) {
         self.values.commit(snapshot);
+    }
+
+    #[inline]
+    fn reset_unifications(
+        &mut self,
+        mut value: impl FnMut(u32) -> VarValue<Self::Key>,
+    ) {
+        self.values.set_all(|i| value(i as u32));
     }
 
     #[inline]
@@ -142,6 +155,19 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
 
     #[inline]
     fn commit(&mut self, _snapshot: Self::Snapshot) {
+    }
+
+    #[inline]
+    fn reset_unifications(
+        &mut self,
+        mut value: impl FnMut(u32) -> VarValue<Self::Key>,
+    ) {
+        // Without extending dogged, there isn't obviously a more
+        // efficient way to do this. But it's pretty dumb. Maybe
+        // dogged needs a `map`.
+        for i in 0 .. self.values.len() {
+            self.values[i] = value(i as u32);
+        }
     }
 
     #[inline]

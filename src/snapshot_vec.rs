@@ -141,6 +141,20 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         }
     }
 
+    /// Updates all elements. Potentially more efficient -- but
+    /// otherwise equivalent to -- invoking `set` for each element.
+    pub fn set_all(&mut self, mut new_elems: impl FnMut(usize) -> D::Value) {
+        if !self.in_snapshot() {
+            for (slot, index) in self.values.iter_mut().zip(0..) {
+                *slot = new_elems(index);
+            }
+        } else {
+            for i in 0..self.values.len() {
+                self.set(i, new_elems(i));
+            }
+        }
+    }
+
     pub fn update<OP>(&mut self, index: usize, op: OP)
     where
         OP: FnOnce(&mut D::Value),

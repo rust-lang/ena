@@ -280,6 +280,20 @@ impl<S: UnificationStore> UnificationTable<S> {
         self.values.reserve(num_new_keys);
     }
 
+    /// Clears all unifications that have been performed, resetting to
+    /// the initial state. The values of each variable are given by
+    /// the closure.
+    pub fn reset_unifications(
+        &mut self,
+        mut value: impl FnMut(S::Key) -> S::Value,
+    ) {
+        self.values.reset_unifications(|i| {
+            let key = UnifyKey::from_index(i as u32);
+            let value = value(key);
+            VarValue::new_var(key, value)
+        });
+    }
+
     /// Returns the number of keys created so far.
     pub fn len(&self) -> usize {
         self.values.len()
