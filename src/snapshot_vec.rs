@@ -119,6 +119,12 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         &self.values[index]
     }
 
+    /// Reserve space for new values, just like an ordinary vec.
+    pub fn reserve(&mut self, additional: usize) {
+        // This is not affected by snapshots or anything.
+        self.values.reserve(additional);
+    }
+
     /// Returns a mutable pointer into the vec; whatever changes you make here cannot be undone
     /// automatically, so you should be sure call `record()` with some sort of suitable undo
     /// action.
@@ -132,6 +138,20 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         let old_elem = mem::replace(&mut self.values[index], new_elem);
         if self.in_snapshot() {
             self.undo_log.push(SetElem(index, old_elem));
+        }
+    }
+
+    /// Updates all elements. Potentially more efficient -- but
+    /// otherwise equivalent to -- invoking `set` for each element.
+    pub fn set_all(&mut self, mut new_elems: impl FnMut(usize) -> D::Value) {
+        if !self.in_snapshot() {
+            for (slot, index) in self.values.iter_mut().zip(0..) {
+                *slot = new_elems(index);
+            }
+        } else {
+            for i in 0..self.values.len() {
+                self.set(i, new_elems(i));
+            }
         }
     }
 

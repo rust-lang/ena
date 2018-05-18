@@ -25,9 +25,16 @@ pub trait UnificationStore: ops::Index<usize, Output = VarValue<Key<Self>>> + Cl
 
     fn commit(&mut self, snapshot: Self::Snapshot);
 
+    fn reset_unifications(
+        &mut self,
+        value: impl FnMut(u32) -> VarValue<Self::Key>,
+    );
+
     fn len(&self) -> usize;
 
     fn push(&mut self, value: VarValue<Self::Key>);
+
+    fn reserve(&mut self, num_new_values: usize);
 
     fn update<F>(&mut self, index: usize, op: F)
         where F: FnOnce(&mut VarValue<Self::Key>);
@@ -70,6 +77,14 @@ impl<K: UnifyKey> UnificationStore for InPlace<K> {
     }
 
     #[inline]
+    fn reset_unifications(
+        &mut self,
+        mut value: impl FnMut(u32) -> VarValue<Self::Key>,
+    ) {
+        self.values.set_all(|i| value(i as u32));
+    }
+
+    #[inline]
     fn len(&self) -> usize {
         self.values.len()
     }
@@ -77,6 +92,11 @@ impl<K: UnifyKey> UnificationStore for InPlace<K> {
     #[inline]
     fn push(&mut self, value: VarValue<Self::Key>) {
         self.values.push(value);
+    }
+
+    #[inline]
+    fn reserve(&mut self, num_new_values: usize) {
+        self.values.reserve(num_new_values);
     }
 
     #[inline]
@@ -138,6 +158,19 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
     }
 
     #[inline]
+    fn reset_unifications(
+        &mut self,
+        mut value: impl FnMut(u32) -> VarValue<Self::Key>,
+    ) {
+        // Without extending dogged, there isn't obviously a more
+        // efficient way to do this. But it's pretty dumb. Maybe
+        // dogged needs a `map`.
+        for i in 0 .. self.values.len() {
+            self.values[i] = value(i as u32);
+        }
+    }
+
+    #[inline]
     fn len(&self) -> usize {
         self.values.len()
     }
@@ -145,6 +178,11 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
     #[inline]
     fn push(&mut self, value: VarValue<Self::Key>) {
         self.values.push(value);
+    }
+
+    #[inline]
+    fn reserve(&mut self, _num_new_values: usize) {
+        // not obviously relevant to DVec.
     }
 
     #[inline]

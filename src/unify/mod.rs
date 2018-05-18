@@ -274,6 +274,26 @@ impl<S: UnificationStore> UnificationTable<S> {
         key
     }
 
+    /// Reserve memory for `num_new_keys` to be created. Does not
+    /// actually create the new keys; you must then invoke `new_key`.
+    pub fn reserve(&mut self, num_new_keys: usize) {
+        self.values.reserve(num_new_keys);
+    }
+
+    /// Clears all unifications that have been performed, resetting to
+    /// the initial state. The values of each variable are given by
+    /// the closure.
+    pub fn reset_unifications(
+        &mut self,
+        mut value: impl FnMut(S::Key) -> S::Value,
+    ) {
+        self.values.reset_unifications(|i| {
+            let key = UnifyKey::from_index(i as u32);
+            let value = value(key);
+            VarValue::new_var(key, value)
+        });
+    }
+
     /// Returns the number of keys created so far.
     pub fn len(&self) -> usize {
         self.values.len()
