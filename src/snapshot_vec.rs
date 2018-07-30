@@ -275,8 +275,12 @@ impl<D: SnapshotVecDelegate> Extend<D::Value> for SnapshotVec<D> {
     where
         T: IntoIterator<Item = D::Value>,
     {
-        for item in iterable {
-            self.push(item);
+        let initial_len = self.values.len();
+        self.values.extend(iterable);
+        let final_len = self.values.len();
+
+        if self.in_snapshot() {
+            self.undo_log.extend((initial_len..final_len).map(|len| NewElem(len)));
         }
     }
 }
