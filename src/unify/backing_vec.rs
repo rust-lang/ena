@@ -7,7 +7,8 @@ use std::marker::PhantomData;
 use super::{VarValue, UnifyKey, UnifyValue};
 
 #[allow(dead_code)] // rustc BUG
-type Key<S> = <S as UnificationStore>::Key;
+#[allow(type_alias_bounds)]
+type Key<S: UnificationStore> = <S as UnificationStore>::Key;
 
 /// Largely internal trait implemented by the unification table
 /// backing store types. The most common such type is `InPlace`,

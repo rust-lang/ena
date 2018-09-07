@@ -181,11 +181,13 @@ pub struct UnificationTable<S: UnificationStore> {
 }
 
 /// A unification table that uses an "in-place" vector.
-pub type InPlaceUnificationTable<K> = UnificationTable<InPlace<K>>;
+#[allow(type_alias_bounds)]
+pub type InPlaceUnificationTable<K: UnifyKey> = UnificationTable<InPlace<K>>;
 
 /// A unification table that uses a "persistent" vector.
 #[cfg(feature = "persistent")]
-pub type PersistentUnificationTable<K> = UnificationTable<Persistent<K>>;
+#[allow(type_alias_bounds)]
+pub type PersistentUnificationTable<K: UnifyKey> = UnificationTable<Persistent<K>>;
 
 /// At any time, users may snapshot a unification table.  The changes
 /// made during the snapshot may either be *committed* or *rolled back*.
