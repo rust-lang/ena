@@ -27,12 +27,6 @@ use std::ops;
 
 #[derive(Debug)]
 pub enum UndoLog<D: SnapshotVecDelegate> {
-    /// Indicates where a snapshot started.
-    OpenSnapshot,
-
-    /// Indicates a snapshot that has been committed.
-    CommittedSnapshot,
-
     /// New variable with given index was created.
     NewElem(usize),
 
@@ -46,6 +40,7 @@ pub enum UndoLog<D: SnapshotVecDelegate> {
 pub struct SnapshotVec<D: SnapshotVecDelegate> {
     values: Vec<D::Value>,
     undo_log: Vec<UndoLog<D>>,
+    num_open_snapshots: usize,
 }
 
 impl<D> fmt::Debug for SnapshotVec<D>
@@ -58,6 +53,7 @@ impl<D> fmt::Debug for SnapshotVec<D>
         fmt.debug_struct("SnapshotVec")
             .field("values", &self.values)
             .field("undo_log", &self.undo_log)
+            .field("num_open_snapshots", &self.num_open_snapshots)
             .finish()
     }
 }
@@ -81,6 +77,7 @@ impl<D: SnapshotVecDelegate> Default for SnapshotVec<D> {
         SnapshotVec {
             values: Vec::new(),
             undo_log: Vec::new(),
+            num_open_snapshots: 0,
         }
     }
 }
@@ -94,11 +91,12 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         SnapshotVec {
             values: Vec::with_capacity(c),
             undo_log: Vec::new(),
+            num_open_snapshots: 0,
         }
     }
 
     fn in_snapshot(&self) -> bool {
-        !self.undo_log.is_empty()
+        self.num_open_snapshots > 0
     }
 
     pub fn record(&mut self, action: D::Undo) {
@@ -176,7 +174,7 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
 
     pub fn start_snapshot(&mut self) -> Snapshot {
         let length = self.undo_log.len();
-        self.undo_log.push(OpenSnapshot);
+        self.num_open_snapshots += 1;
         Snapshot { length: length }
     }
 
@@ -185,14 +183,9 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
     }
 
     fn assert_open_snapshot(&self, snapshot: &Snapshot) {
-        // Or else there was a failure to follow a stack discipline:
-        assert!(self.undo_log.len() > snapshot.length);
-
-        // Invariant established by start_snapshot():
-        assert!(match self.undo_log[snapshot.length] {
-            OpenSnapshot => true,
-            _ => false,
-        });
+        // Failures here may indicate a failure to follow a stack discipline.
+        assert!(self.undo_log.len() >= snapshot.length);
+        assert!(self.num_open_snapshots > 0);
     }
 
     pub fn rollback_to(&mut self, snapshot: Snapshot) {
@@ -200,18 +193,8 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
 
         self.assert_open_snapshot(&snapshot);
 
-        while self.undo_log.len() > snapshot.length + 1 {
+        while self.undo_log.len() > snapshot.length {
             match self.undo_log.pop().unwrap() {
-                OpenSnapshot => {
-                    // This indicates a failure to obey the stack discipline.
-                    panic!("Cannot rollback an uncommitted snapshot");
-                }
-
-                CommittedSnapshot => {
-                    // This occurs when there are nested snapshots and
-                    // the inner is committed but outer is rolled back.
-                }
-
                 NewElem(i) => {
                     self.values.pop();
                     assert!(self.values.len() == i);
@@ -227,12 +210,7 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
             }
         }
 
-        let v = self.undo_log.pop().unwrap();
-        assert!(match v {
-            OpenSnapshot => true,
-            _ => false,
-        });
-        assert!(self.undo_log.len() == snapshot.length);
+        self.num_open_snapshots -= 1;
     }
 
     /// Commits all changes since the last snapshot. Of course, they
@@ -242,12 +220,15 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
 
         self.assert_open_snapshot(&snapshot);
 
-        if snapshot.length == 0 {
-            // The root snapshot.
-            self.undo_log.truncate(0);
-        } else {
-            self.undo_log[snapshot.length] = CommittedSnapshot;
+        if self.num_open_snapshots == 1 {
+            // The root snapshot. It's safe to clear the undo log because
+            // there's no snapshot further out that we might need to roll back
+            // to.
+            assert!(snapshot.length == 0);
+            self.undo_log.clear();
         }
+
+        self.num_open_snapshots -= 1;
     }
 }
 
@@ -301,6 +282,7 @@ where
         SnapshotVec {
             values: self.values.clone(),
             undo_log: self.undo_log.clone(),
+            num_open_snapshots: self.num_open_snapshots,
         }
     }
 }
@@ -312,11 +294,77 @@ where
 {
     fn clone(&self) -> Self {
         match *self {
-            OpenSnapshot => OpenSnapshot,
-            CommittedSnapshot => CommittedSnapshot,
             NewElem(i) => NewElem(i),
             SetElem(i, ref v) => SetElem(i, v.clone()),
             Other(ref u) => Other(u.clone()),
         }
     }
+}
+
+impl SnapshotVecDelegate for i32 {
+    type Value = i32;
+    type Undo = ();
+
+    fn reverse(_: &mut Vec<i32>, _: ()) {}
+}
+
+#[test]
+fn basic() {
+    let mut vec: SnapshotVec<i32> = SnapshotVec::default();
+    assert!(!vec.in_snapshot());
+    assert_eq!(vec.len(), 0);
+    vec.push(22);
+    vec.push(33);
+    assert_eq!(vec.len(), 2);
+    assert_eq!(*vec.get(0), 22);
+    assert_eq!(*vec.get(1), 33);
+    vec.set(1, 34);
+    assert_eq!(vec.len(), 2);
+    assert_eq!(*vec.get(0), 22);
+    assert_eq!(*vec.get(1), 34);
+
+    let snapshot = vec.start_snapshot();
+    assert!(vec.in_snapshot());
+
+    vec.push(44);
+    vec.push(55);
+    vec.set(1, 35);
+    assert_eq!(vec.len(), 4);
+    assert_eq!(*vec.get(0), 22);
+    assert_eq!(*vec.get(1), 35);
+    assert_eq!(*vec.get(2), 44);
+    assert_eq!(*vec.get(3), 55);
+
+    vec.rollback_to(snapshot);
+    assert!(!vec.in_snapshot());
+
+    assert_eq!(vec.len(), 2);
+    assert_eq!(*vec.get(0), 22);
+    assert_eq!(*vec.get(1), 34);
+}
+
+#[test]
+#[should_panic]
+fn out_of_order() {
+    let mut vec: SnapshotVec<i32> = SnapshotVec::default();
+    vec.push(22);
+    let snapshot1 = vec.start_snapshot();
+    vec.push(33);
+    let snapshot2 = vec.start_snapshot();
+    vec.push(44);
+    vec.rollback_to(snapshot1); // bogus, but accepted
+    vec.rollback_to(snapshot2); // asserts
+}
+
+#[test]
+fn nested_commit_then_rollback() {
+    let mut vec: SnapshotVec<i32> = SnapshotVec::default();
+    vec.push(22);
+    let snapshot1 = vec.start_snapshot();
+    let snapshot2 = vec.start_snapshot();
+    vec.set(0, 23);
+    vec.commit(snapshot2);
+    assert_eq!(*vec.get(0), 23);
+    vec.rollback_to(snapshot1);
+    assert_eq!(*vec.get(0), 22);
 }
