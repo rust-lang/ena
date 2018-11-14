@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/nikomatsakis/ena.svg?branch=master)](https://travis-ci.org/nikomatsakis/ena)
+[![Build Status](https://travis-ci.org/rust-lang-nursery/ena.svg?branch=master)](https://travis-ci.org/rust-lang-nursery/ena)
 
 An implementation of union-find in Rust; extracted from (and used by)
 rustc.
@@ -20,4 +20,3 @@ Like rustc itself, this code is dual-licensed under the MIT and Apache
 licenses. Pull requests, comments, and other contributions are assumed
 to imply consent to those terms. Moreover, it is understood that any
 changes here may well be used in rustc itself under the same terms.
-
