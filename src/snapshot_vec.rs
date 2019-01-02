@@ -150,7 +150,7 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
     /// otherwise equivalent to -- invoking `set` for each element.
     pub fn set_all(&mut self, mut new_elems: impl FnMut(usize) -> D::Value) {
         if !self.in_snapshot() {
-            for (slot, index) in self.values.iter_mut().zip(0..) {
+            for (index, slot) in self.values.iter_mut().enumerate() {
                 *slot = new_elems(index);
             }
         } else {
