@@ -61,7 +61,7 @@ impl<D> fmt::Debug for SnapshotVec<D>
 // Snapshots are tokens that should be created/consumed linearly.
 pub struct Snapshot {
     // Length of the undo log at the time the snapshot was taken.
-    length: usize,
+    pub(crate) length: usize,
 }
 
 pub trait SnapshotVecDelegate {

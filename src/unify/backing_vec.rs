@@ -2,6 +2,7 @@
 use dogged::DVec;
 use snapshot_vec as sv;
 use std::ops;
+use std::ops::RangeInclusive;
 use std::marker::PhantomData;
 
 use super::{VarValue, UnifyKey, UnifyValue};
@@ -10,15 +11,19 @@ use super::{VarValue, UnifyKey, UnifyValue};
 #[allow(type_alias_bounds)]
 type Key<S: UnificationStore> = <S as UnificationStore>::Key;
 
+pub trait Measurable {
+    fn len(&self) -> usize;
+}
+
 /// Largely internal trait implemented by the unification table
 /// backing store types. The most common such type is `InPlace`,
 /// which indicates a standard, mutable unification table.
 pub trait UnificationStore:
-    ops::Index<usize, Output = VarValue<Key<Self>>> + Clone + Default
+    ops::Index<usize, Output = VarValue<Key<Self>>> + Measurable + Clone + Default
 {
     type Key: UnifyKey<Value = Self::Value>;
     type Value: UnifyValue;
-    type Snapshot;
+    type Snapshot: Measurable;
 
     fn start_snapshot(&mut self) -> Self::Snapshot;
 
@@ -26,12 +31,14 @@ pub trait UnificationStore:
 
     fn commit(&mut self, snapshot: Self::Snapshot);
 
+    fn values_since_snapshot(&mut self, snapshot: &Self::Snapshot) -> RangeInclusive<usize> {
+        snapshot.len()..=self.len()
+    }
+
     fn reset_unifications(
         &mut self,
         value: impl FnMut(u32) -> VarValue<Self::Key>,
     );
-
-    fn len(&self) -> usize;
 
     fn push(&mut self, value: VarValue<Self::Key>);
 
@@ -56,6 +63,20 @@ pub struct InPlace<K: UnifyKey> {
 impl<K: UnifyKey> Default for InPlace<K> {
     fn default() -> Self {
         InPlace { values: sv::SnapshotVec::new() }
+    }
+}
+
+impl Measurable for sv::Snapshot {
+    #[inline]
+    fn len(&self) -> usize {
+        self.length
+    }
+}
+
+impl<K: UnifyKey> Measurable for InPlace<K> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.values.len()
     }
 }
 
@@ -85,11 +106,6 @@ impl<K: UnifyKey> UnificationStore for InPlace<K> {
         mut value: impl FnMut(u32) -> VarValue<Self::Key>,
     ) {
         self.values.set_all(|i| value(i as u32));
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.values.len()
     }
 
     #[inline]
@@ -144,6 +160,14 @@ impl<K: UnifyKey> Default for Persistent<K> {
 }
 
 #[cfg(feature = "persistent")]
+impl<K: UnifyKey> Measurable for Persistent<K> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.values.len()
+    }
+}
+
+#[cfg(feature = "persistent")]
 impl<K: UnifyKey> UnificationStore for Persistent<K> {
     type Key = K;
     type Value = K::Value;
@@ -174,11 +198,6 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
         for i in 0 .. self.values.len() {
             self.values[i] = value(i as u32);
         }
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.values.len()
     }
 
     #[inline]
