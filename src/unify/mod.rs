@@ -33,6 +33,7 @@
 
 use std::marker;
 use std::fmt::Debug;
+use std::ops::Range;
 
 mod backing_vec;
 pub use self::backing_vec::{InPlace, UnificationStore};
@@ -297,6 +298,15 @@ impl<S: UnificationStore> UnificationTable<S> {
     /// Returns the number of keys created so far.
     pub fn len(&self) -> usize {
         self.values.len()
+    }
+
+    /// Returns the keys of all variables created since the `snapshot`.
+    pub fn vars_since_snapshot(
+        &self,
+        snapshot: &Snapshot<S>,
+    ) -> Range<S::Key> {
+        let range = self.values.values_since_snapshot(&snapshot.snapshot);
+        S::Key::from_index(range.start as u32)..S::Key::from_index(range.end as u32)
     }
 
     /// Obtains the current value for a particular key.
