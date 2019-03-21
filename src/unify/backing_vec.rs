@@ -1,8 +1,7 @@
 #[cfg(feature = "persistent")]
 use dogged::DVec;
 use snapshot_vec as sv;
-use std::ops;
-use std::ops::RangeInclusive;
+use std::ops::{self, Range};
 use std::marker::PhantomData;
 
 use super::{VarValue, UnifyKey, UnifyValue};
@@ -31,8 +30,8 @@ pub trait UnificationStore:
 
     fn commit(&mut self, snapshot: Self::Snapshot);
 
-    fn values_since_snapshot(&mut self, snapshot: &Self::Snapshot) -> RangeInclusive<usize> {
-        snapshot.len()..=self.len()
+    fn values_since_snapshot(&self, snapshot: &Self::Snapshot) -> Range<usize> {
+        snapshot.len()..self.len()
     }
 
     fn reset_unifications(
