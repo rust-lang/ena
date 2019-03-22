@@ -60,6 +60,8 @@ impl<D> fmt::Debug for SnapshotVec<D>
 
 // Snapshots are tokens that should be created/consumed linearly.
 pub struct Snapshot {
+    // Number of values at the time the snapshot was taken.
+    pub(crate) value_count: usize,
     // Length of the undo log at the time the snapshot was taken.
     undo_len: usize,
 }
@@ -173,10 +175,9 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
     }
 
     pub fn start_snapshot(&mut self) -> Snapshot {
-        let length = self.undo_log.len();
         self.num_open_snapshots += 1;
-        Snapshot { length: length }
         Snapshot {
+            value_count: self.values.len(),
             undo_len: self.undo_log.len(),
         }
     }
