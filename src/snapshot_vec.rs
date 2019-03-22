@@ -61,7 +61,7 @@ impl<D> fmt::Debug for SnapshotVec<D>
 // Snapshots are tokens that should be created/consumed linearly.
 pub struct Snapshot {
     // Length of the undo log at the time the snapshot was taken.
-    pub(crate) length: usize,
+    undo_len: usize,
 }
 
 pub trait SnapshotVecDelegate {
@@ -176,24 +176,27 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         let length = self.undo_log.len();
         self.num_open_snapshots += 1;
         Snapshot { length: length }
+        Snapshot {
+            undo_len: self.undo_log.len(),
+        }
     }
 
     pub fn actions_since_snapshot(&self, snapshot: &Snapshot) -> &[UndoLog<D>] {
-        &self.undo_log[snapshot.length..]
+        &self.undo_log[snapshot.undo_len..]
     }
 
     fn assert_open_snapshot(&self, snapshot: &Snapshot) {
         // Failures here may indicate a failure to follow a stack discipline.
-        assert!(self.undo_log.len() >= snapshot.length);
+        assert!(self.undo_log.len() >= snapshot.undo_len);
         assert!(self.num_open_snapshots > 0);
     }
 
     pub fn rollback_to(&mut self, snapshot: Snapshot) {
-        debug!("rollback_to({})", snapshot.length);
+        debug!("rollback_to({})", snapshot.undo_len);
 
         self.assert_open_snapshot(&snapshot);
 
-        while self.undo_log.len() > snapshot.length {
+        while self.undo_log.len() > snapshot.undo_len {
             match self.undo_log.pop().unwrap() {
                 NewElem(i) => {
                     self.values.pop();
@@ -216,7 +219,7 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
     /// Commits all changes since the last snapshot. Of course, they
     /// can still be undone if there is a snapshot further out.
     pub fn commit(&mut self, snapshot: Snapshot) {
-        debug!("commit({})", snapshot.length);
+        debug!("commit({})", snapshot.undo_len);
 
         self.assert_open_snapshot(&snapshot);
 
@@ -224,7 +227,7 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
             // The root snapshot. It's safe to clear the undo log because
             // there's no snapshot further out that we might need to roll back
             // to.
-            assert!(snapshot.length == 0);
+            assert!(snapshot.undo_len == 0);
             self.undo_log.clear();
         }
 
