@@ -2,8 +2,8 @@
 name = "ena"
 description = "Union-find, congruence closure, and other unification code. Based on code from rustc."
 license = "MIT/Apache-2.0"
-homepage = "https://github.com/nikomatsakis/ena"
-repository = "https://github.com/nikomatsakis/ena"
+homepage = "https://github.com/rust-lang-nursery/ena"
+repository = "https://github.com/rust-lang-nursery/ena"
 version = "0.13.0"
 authors = ["Niko Matsakis <niko@alum.mit.edu>"]
 readme = "README.md"
