@@ -49,7 +49,7 @@ impl<D> fmt::Debug for SnapshotVec<D>
           D::Undo: fmt::Debug,
           D::Value: fmt::Debug
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("SnapshotVec")
             .field("values", &self.values)
             .field("undo_log", &self.undo_log)

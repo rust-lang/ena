@@ -422,7 +422,7 @@ impl<S: UnificationStore> UnificationTable<S> {
 /// ////////////////////////////////////////////////////////////////////////
 /// Public API
 
-impl<'tcx, S, K, V> UnificationTable<S>
+impl<S, K, V> UnificationTable<S>
 where
     S: UnificationStore<Key = K, Value = V>,
     K: UnifyKey<Value = V>,
