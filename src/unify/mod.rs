@@ -321,7 +321,11 @@ impl<S: UnificationStore> UnificationTable<S> {
     ///
     /// NB. This is a building-block operation and you would probably
     /// prefer to call `probe` below.
-    fn get_root_key(&mut self, vid: S::Key) -> S::Key {
+    ///
+    /// This is an always-inlined version of this function for the hot
+    /// callsites. `uninlined_get_root_key` is the never-inlined version.
+    #[inline(always)]
+    fn inlined_get_root_key(&mut self, vid: S::Key) -> S::Key {
         let redirect = {
             match self.value(vid).parent(vid) {
                 None => return vid,
@@ -329,13 +333,20 @@ impl<S: UnificationStore> UnificationTable<S> {
             }
         };
 
-        let root_key: S::Key = self.get_root_key(redirect);
+        let root_key: S::Key = self.uninlined_get_root_key(redirect);
         if root_key != redirect {
             // Path compression
             self.update_value(vid, |value| value.parent = root_key);
         }
 
         root_key
+    }
+
+    // This is a never-inlined version of this function for cold callsites.
+    // 'inlined_get_root_key` is the always-inlined version.
+    #[inline(never)]
+    fn uninlined_get_root_key(&mut self, vid: S::Key) -> S::Key {
+        self.inlined_get_root_key(vid)
     }
 
     fn update_value<OP>(&mut self, key: S::Key, op: OP)
@@ -422,7 +433,7 @@ impl<S: UnificationStore> UnificationTable<S> {
 /// ////////////////////////////////////////////////////////////////////////
 /// Public API
 
-impl<'tcx, S, K, V> UnificationTable<S>
+impl<S, K, V> UnificationTable<S>
 where
     S: UnificationStore<Key = K, Value = V>,
     K: UnifyKey<Value = V>,
@@ -466,7 +477,7 @@ where
         K1: Into<K>,
     {
         let id = id.into();
-        self.get_root_key(id)
+        self.uninlined_get_root_key(id)
     }
 
     /// Unions together two variables, merging their values. If
@@ -480,8 +491,8 @@ where
         let a_id = a_id.into();
         let b_id = b_id.into();
 
-        let root_a = self.get_root_key(a_id);
-        let root_b = self.get_root_key(b_id);
+        let root_a = self.uninlined_get_root_key(a_id);
+        let root_b = self.uninlined_get_root_key(b_id);
 
         if root_a == root_b {
             return Ok(());
@@ -499,7 +510,7 @@ where
         K1: Into<K>,
     {
         let a_id = a_id.into();
-        let root_a = self.get_root_key(a_id);
+        let root_a = self.uninlined_get_root_key(a_id);
         let value = V::unify_values(&self.value(root_a).value, &b)?;
         self.update_value(root_a, |node| node.value = value);
         Ok(())
@@ -511,8 +522,17 @@ where
     where
         K1: Into<K>,
     {
+        self.inlined_probe_value(id)
+    }
+
+    // An always-inlined version of `probe_value`, for hot callsites.
+    #[inline(always)]
+    pub fn inlined_probe_value<K1>(&mut self, id: K1) -> V
+    where
+        K1: Into<K>,
+    {
         let id = id.into();
-        let id = self.get_root_key(id);
+        let id = self.inlined_get_root_key(id);
         self.value(id).value.clone()
     }
 }
