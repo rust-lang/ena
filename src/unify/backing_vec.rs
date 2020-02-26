@@ -178,9 +178,17 @@ impl<K: UnifyKey> Default for Persistent<K> {
 }
 
 #[cfg(feature = "persistent")]
-impl<K: UnifyKey> UnificationStore for Persistent<K> {
+impl<K: UnifyKey> UnificationStoreBase for Persistent<K> {
     type Key = K;
     type Value = K::Value;
+
+    fn len(&self) -> usize {
+        self.values.len()
+    }
+}
+
+#[cfg(feature = "persistent")]
+impl<K: UnifyKey> UnificationStore for Persistent<K> {
     type Snapshot = Self;
 
     #[inline]
@@ -209,10 +217,6 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
         for i in 0..self.values.len() {
             self.values[i] = value(i as u32);
         }
-    }
-
-    fn len(&self) -> usize {
-        self.values.len()
     }
 
     #[inline]

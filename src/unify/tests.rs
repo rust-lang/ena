@@ -93,7 +93,9 @@ fn big_array() {
 }
 
 #[cfg(feature = "bench")]
-fn big_array_bench_generic<S: UnificationStore<Key = UnitKey, Value = ()>>(b: &mut Bencher) {
+fn big_array_bench_generic<S: Default + UnificationStore<Key = UnitKey, Value = ()>>(
+    b: &mut Bencher,
+) {
     let mut ut: UnificationTable<S> = UnificationTable::new();
     let mut keys = Vec::new();
     const MAX: usize = 1 << 15;
@@ -128,7 +130,7 @@ fn big_array_bench_Persistent(b: &mut Bencher) {
 }
 
 #[cfg(feature = "bench")]
-fn big_array_bench_in_snapshot_generic<S: UnificationStore<Key = UnitKey, Value = ()>>(
+fn big_array_bench_in_snapshot_generic<S: Default + UnificationStore<Key = UnitKey, Value = ()>>(
     b: &mut Bencher,
 ) {
     let mut ut: UnificationTable<S> = UnificationTable::new();
@@ -169,7 +171,11 @@ fn big_array_bench_in_snapshot_Persistent(b: &mut Bencher) {
 }
 
 #[cfg(feature = "bench")]
-fn big_array_bench_clone_generic<S: UnificationStore<Key = UnitKey, Value = ()>>(b: &mut Bencher) {
+fn big_array_bench_clone_generic<
+    S: Default + Clone + UnificationStore<Key = UnitKey, Value = ()>,
+>(
+    b: &mut Bencher,
+) {
     let mut ut: UnificationTable<S> = UnificationTable::new();
     let mut keys = Vec::new();
     const MAX: usize = 1 << 15;
