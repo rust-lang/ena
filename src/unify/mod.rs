@@ -268,7 +268,7 @@ where
 // other type parameter U, and we have no way to say
 // Option<U>:LatticeValue.
 
-impl<S: UnificationStoreBase + Default> UnificationTable<S> {
+impl<S: Default> UnificationTable<S> {
     pub fn new() -> Self {
         Self::default()
     }
