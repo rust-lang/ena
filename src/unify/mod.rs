@@ -306,6 +306,13 @@ impl<S: UnificationStore> UnificationTable<S> {
 }
 
 impl<S: UnificationStoreBase> UnificationTable<S> {
+    /// Returns the number of keys created so far.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+}
+
+impl<S: UnificationStore> UnificationTable<S> {
     /// Starts a new snapshot. Each snapshot must be either
     /// Creates a fresh key with the given value.
     pub fn new_key(&mut self, value: S::Value) -> S::Key {
@@ -331,11 +338,6 @@ impl<S: UnificationStoreBase> UnificationTable<S> {
             let value = value(key);
             VarValue::new_var(key, value)
         });
-    }
-
-    /// Returns the number of keys created so far.
-    pub fn len(&self) -> usize {
-        self.values.len()
     }
 
     /// Obtains the current value for a particular key.
@@ -463,7 +465,7 @@ impl<S: UnificationStoreBase> UnificationTable<S> {
 
 impl<S, K, V> UnificationTable<S>
 where
-    S: UnificationStoreBase<Key = K, Value = V>,
+    S: UnificationStore<Key = K, Value = V>,
     K: UnifyKey<Value = V>,
     V: UnifyValue,
 {

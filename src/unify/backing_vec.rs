@@ -4,7 +4,7 @@ use snapshot_vec as sv;
 use std::marker::PhantomData;
 use std::ops::{self, Range};
 
-use undo_log::{Rollback, Snapshots, UndoLogs, VecLog};
+use undo_log::{Rollback, Snapshots, VecLog};
 
 use super::{UnifyKey, UnifyValue, VarValue};
 
@@ -19,17 +19,7 @@ pub trait UnificationStoreBase: ops::Index<usize, Output = VarValue<Key<Self>>> 
     type Key: UnifyKey<Value = Self::Value>;
     type Value: UnifyValue;
 
-    fn reset_unifications(&mut self, value: impl FnMut(u32) -> VarValue<Self::Key>);
-
     fn len(&self) -> usize;
-
-    fn push(&mut self, value: VarValue<Self::Key>);
-
-    fn reserve(&mut self, num_new_values: usize);
-
-    fn update<F>(&mut self, index: usize, op: F)
-    where
-        F: FnOnce(&mut VarValue<Self::Key>);
 
     fn tag() -> &'static str {
         Self::Key::tag()
@@ -38,6 +28,16 @@ pub trait UnificationStoreBase: ops::Index<usize, Output = VarValue<Key<Self>>> 
 
 pub trait UnificationStore: UnificationStoreBase {
     type Snapshot;
+
+    fn reset_unifications(&mut self, value: impl FnMut(u32) -> VarValue<Self::Key>);
+
+    fn push(&mut self, value: VarValue<Self::Key>);
+
+    fn reserve(&mut self, num_new_values: usize);
+
+    fn update<F>(&mut self, index: usize, op: F)
+    where
+        F: FnOnce(&mut VarValue<Self::Key>);
 
     fn start_snapshot(&mut self) -> Self::Snapshot;
 
@@ -72,18 +72,26 @@ impl<K, V, L> UnificationStoreBase for InPlace<K, V, L>
 where
     K: UnifyKey,
     V: sv::VecLike<Delegate<K>>,
-    L: UndoLogs<sv::UndoLog<Delegate<K>>>,
 {
     type Key = K;
     type Value = K::Value;
 
+    fn len(&self) -> usize {
+        self.values.len()
+    }
+}
+
+impl<K, V, L> UnificationStore for InPlace<K, V, L>
+where
+    K: UnifyKey,
+    V: sv::VecLike<Delegate<K>>,
+    L: Snapshots<sv::UndoLog<Delegate<K>>>,
+{
+    type Snapshot = sv::Snapshot<L::Snapshot>;
+
     #[inline]
     fn reset_unifications(&mut self, mut value: impl FnMut(u32) -> VarValue<Self::Key>) {
         self.values.set_all(|i| value(i as u32));
-    }
-
-    fn len(&self) -> usize {
-        self.values.len()
     }
 
     #[inline]
@@ -103,15 +111,6 @@ where
     {
         self.values.update(index, op)
     }
-}
-
-impl<K, V, L> UnificationStore for InPlace<K, V, L>
-where
-    K: UnifyKey,
-    V: sv::VecLike<Delegate<K>>,
-    L: Snapshots<sv::UndoLog<Delegate<K>>>,
-{
-    type Snapshot = sv::Snapshot<L::Snapshot>;
 
     #[inline]
     fn start_snapshot(&mut self) -> Self::Snapshot {
