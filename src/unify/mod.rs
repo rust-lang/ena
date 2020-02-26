@@ -184,7 +184,8 @@ pub struct UnificationTable<S> {
     values: S,
 }
 
-pub type UnificationTableStorage<K> = UnificationTable<InPlace<K, Vec<VarValue<K>>, ()>>;
+pub type UnificationStorage<K> = Vec<VarValue<K>>;
+pub type UnificationTableStorage<K> = UnificationTable<InPlace<K, UnificationStorage<K>, ()>>;
 
 /// A unification table that uses an "in-place" vector.
 #[allow(type_alias_bounds)]
