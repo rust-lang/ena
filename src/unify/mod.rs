@@ -39,7 +39,9 @@ use snapshot_vec::{self as sv, UndoLog};
 use undo_log::{UndoLogs, VecLog};
 
 mod backing_vec;
-pub use self::backing_vec::{Delegate, InPlace, UnificationStore, UnificationStoreBase};
+pub use self::backing_vec::{
+    Delegate, InPlace, UnificationStore, UnificationStoreBase, UnificationStoreMut,
+};
 
 #[cfg(feature = "persistent")]
 pub use self::backing_vec::Persistent;
@@ -312,7 +314,7 @@ impl<S: UnificationStoreBase> UnificationTable<S> {
     }
 }
 
-impl<S: UnificationStore> UnificationTable<S> {
+impl<S: UnificationStoreMut> UnificationTable<S> {
     /// Starts a new snapshot. Each snapshot must be either
     /// Creates a fresh key with the given value.
     pub fn new_key(&mut self, value: S::Value) -> S::Key {
@@ -465,7 +467,7 @@ impl<S: UnificationStore> UnificationTable<S> {
 
 impl<S, K, V> UnificationTable<S>
 where
-    S: UnificationStore<Key = K, Value = V>,
+    S: UnificationStoreMut<Key = K, Value = V>,
     K: UnifyKey<Value = V>,
     V: UnifyValue,
 {

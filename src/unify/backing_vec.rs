@@ -4,7 +4,7 @@ use snapshot_vec as sv;
 use std::marker::PhantomData;
 use std::ops::{self, Range};
 
-use undo_log::{Rollback, Snapshots, VecLog};
+use undo_log::{Rollback, Snapshots, UndoLogs, VecLog};
 
 use super::{UnifyKey, UnifyValue, VarValue};
 
@@ -26,9 +26,7 @@ pub trait UnificationStoreBase: ops::Index<usize, Output = VarValue<Key<Self>>> 
     }
 }
 
-pub trait UnificationStore: UnificationStoreBase {
-    type Snapshot;
-
+pub trait UnificationStoreMut: UnificationStoreBase {
     fn reset_unifications(&mut self, value: impl FnMut(u32) -> VarValue<Self::Key>);
 
     fn push(&mut self, value: VarValue<Self::Key>);
@@ -38,6 +36,10 @@ pub trait UnificationStore: UnificationStoreBase {
     fn update<F>(&mut self, index: usize, op: F)
     where
         F: FnOnce(&mut VarValue<Self::Key>);
+}
+
+pub trait UnificationStore: UnificationStoreMut {
+    type Snapshot;
 
     fn start_snapshot(&mut self) -> Self::Snapshot;
 
@@ -81,14 +83,12 @@ where
     }
 }
 
-impl<K, V, L> UnificationStore for InPlace<K, V, L>
+impl<K, V, L> UnificationStoreMut for InPlace<K, V, L>
 where
     K: UnifyKey,
     V: sv::VecLike<Delegate<K>>,
-    L: Snapshots<sv::UndoLog<Delegate<K>>>,
+    L: UndoLogs<sv::UndoLog<Delegate<K>>>,
 {
-    type Snapshot = sv::Snapshot<L::Snapshot>;
-
     #[inline]
     fn reset_unifications(&mut self, mut value: impl FnMut(u32) -> VarValue<Self::Key>) {
         self.values.set_all(|i| value(i as u32));
@@ -111,6 +111,15 @@ where
     {
         self.values.update(index, op)
     }
+}
+
+impl<K, V, L> UnificationStore for InPlace<K, V, L>
+where
+    K: UnifyKey,
+    V: sv::VecLike<Delegate<K>>,
+    L: Snapshots<sv::UndoLog<Delegate<K>>>,
+{
+    type Snapshot = sv::Snapshot<L::Snapshot>;
 
     #[inline]
     fn start_snapshot(&mut self) -> Self::Snapshot {
@@ -188,27 +197,7 @@ impl<K: UnifyKey> UnificationStoreBase for Persistent<K> {
 }
 
 #[cfg(feature = "persistent")]
-impl<K: UnifyKey> UnificationStore for Persistent<K> {
-    type Snapshot = Self;
-
-    #[inline]
-    fn start_snapshot(&mut self) -> Self::Snapshot {
-        self.clone()
-    }
-
-    #[inline]
-    fn rollback_to(&mut self, snapshot: Self::Snapshot) {
-        *self = snapshot;
-    }
-
-    #[inline]
-    fn commit(&mut self, _snapshot: Self::Snapshot) {}
-
-    #[inline]
-    fn values_since_snapshot(&self, snapshot: &Self::Snapshot) -> Range<usize> {
-        snapshot.len()..self.len()
-    }
-
+impl<K: UnifyKey> UnificationStoreMut for Persistent<K> {
     #[inline]
     fn reset_unifications(&mut self, mut value: impl FnMut(u32) -> VarValue<Self::Key>) {
         // Without extending dogged, there isn't obviously a more
@@ -236,6 +225,29 @@ impl<K: UnifyKey> UnificationStore for Persistent<K> {
     {
         let p = &mut self.values[index];
         op(p);
+    }
+}
+
+#[cfg(feature = "persistent")]
+impl<K: UnifyKey> UnificationStore for Persistent<K> {
+    type Snapshot = Self;
+
+    #[inline]
+    fn start_snapshot(&mut self) -> Self::Snapshot {
+        self.clone()
+    }
+
+    #[inline]
+    fn rollback_to(&mut self, snapshot: Self::Snapshot) {
+        *self = snapshot;
+    }
+
+    #[inline]
+    fn commit(&mut self, _snapshot: Self::Snapshot) {}
+
+    #[inline]
+    fn values_since_snapshot(&self, snapshot: &Self::Snapshot) -> Range<usize> {
+        snapshot.len()..self.len()
     }
 }
 
