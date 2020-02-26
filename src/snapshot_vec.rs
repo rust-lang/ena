@@ -98,6 +98,10 @@ where
     }
 }
 
+#[allow(type_alias_bounds)]
+pub type SnapshotVecStorage<D: SnapshotVecDelegate> =
+    SnapshotVec<D, Vec<<D as SnapshotVecDelegate>::Value>, ()>;
+
 pub struct SnapshotVec<
     D: SnapshotVecDelegate,
     V: VecLike<D> = Vec<<D as SnapshotVecDelegate>::Value>,
@@ -153,9 +157,13 @@ impl<D: SnapshotVecDelegate, V: VecLike<D> + Default, L: Default> SnapshotVec<D,
 }
 
 impl<D: SnapshotVecDelegate, V: VecLike<D>, L> SnapshotVec<D, V, L> {
-    pub fn with_log(values: V, undo_log: L) -> Self {
+    pub fn with_log<'a, L2>(&'a mut self, undo_log: L2) -> SnapshotVec<D, &'a mut V, L2>
+    where
+        L2: UndoLogs<UndoLog<D>>,
+        &'a mut V: VecLike<D>,
+    {
         SnapshotVec {
-            values,
+            values: &mut self.values,
             undo_log,
             _marker: PhantomData,
         }

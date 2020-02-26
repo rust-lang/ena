@@ -179,12 +179,12 @@ pub struct VarValue<K: UnifyKey> {
 ///   - This implies that ordinary operations are quite a bit slower though.
 ///   - Requires the `persistent` feature be selected in your Cargo.toml file.
 #[derive(Clone, Debug, Default)]
-pub struct UnificationTable<S: UnificationStoreBase> {
+pub struct UnificationTable<S> {
     /// Indicates the current value of each key.
     values: S,
 }
 
-pub type UnificationStorage<K> = Vec<VarValue<K>>;
+pub type UnificationTableStorage<K> = UnificationTable<InPlace<K, Vec<VarValue<K>>, ()>>;
 
 /// A unification table that uses an "in-place" vector.
 #[allow(type_alias_bounds)]
@@ -245,12 +245,18 @@ impl<K, V, L> UnificationTable<InPlace<K, V, L>>
 where
     K: UnifyKey,
     V: sv::VecLike<Delegate<K>>,
-    L: UndoLogs<sv::UndoLog<Delegate<K>>>,
 {
-    pub fn with_log(values: V, undo_log: L) -> Self {
-        Self {
+    pub fn with_log<'a, L2>(
+        &'a mut self,
+        undo_log: L2,
+    ) -> UnificationTable<InPlace<K, &'a mut V, L2>>
+    where
+        L2: UndoLogs<sv::UndoLog<Delegate<K>>>,
+        &'a mut V: sv::VecLike<Delegate<K>>,
+    {
+        UnificationTable {
             values: InPlace {
-                values: sv::SnapshotVec::with_log(values, undo_log),
+                values: self.values.values.with_log(undo_log),
             },
         }
     }
