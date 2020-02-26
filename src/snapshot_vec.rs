@@ -40,6 +40,11 @@ pub enum UndoLog<D: SnapshotVecDelegate> {
     Other(D::Undo),
 }
 
+impl<D: SnapshotVecDelegate> Rollback<UndoLog<D>> for SnapshotVecStorage<D> {
+    fn reverse(&mut self, undo: UndoLog<D>) {
+        self.values.reverse(undo)
+    }
+}
 impl<D: SnapshotVecDelegate> Rollback<UndoLog<D>> for Vec<D::Value> {
     fn reverse(&mut self, undo: UndoLog<D>) {
         match undo {

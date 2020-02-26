@@ -4,7 +4,7 @@ use snapshot_vec as sv;
 use std::marker::PhantomData;
 use std::ops::{self, Range};
 
-use undo_log::{Snapshots, UndoLogs, VecLog};
+use undo_log::{Rollback, Snapshots, UndoLogs, VecLog};
 
 use super::{UnifyKey, UnifyValue, VarValue};
 
@@ -154,6 +154,12 @@ impl<K: UnifyKey> sv::SnapshotVecDelegate for Delegate<K> {
     type Undo = ();
 
     fn reverse(_: &mut Vec<VarValue<K>>, _: ()) {}
+}
+
+impl<K: UnifyKey> Rollback<sv::UndoLog<Delegate<K>>> for super::UnificationTableStorage<K> {
+    fn reverse(&mut self, undo: sv::UndoLog<Delegate<K>>) {
+        self.values.values.reverse(undo);
+    }
 }
 
 #[cfg(feature = "persistent")]
