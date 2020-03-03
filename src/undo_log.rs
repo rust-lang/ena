@@ -1,3 +1,5 @@
+/// A trait which allows actions (`T`) to be pushed which which allows the action to be undone at a
+/// later time if needed
 pub trait UndoLogs<T> {
     fn in_snapshot(&self) -> bool {
         self.num_open_snapshots() > 0
@@ -41,6 +43,10 @@ where
     }
 }
 
+/// A trait which allows snapshots to be done at specific points. Each snapshot can then be used to
+/// rollback any changes to an underlying data structures if they were not desirable.
+///
+/// Each snapshot must be consumed linearly with either `rollback_to` or `commit`.
 pub trait Snapshots<T>: UndoLogs<T> {
     type Snapshot;
     fn has_changes(&self, snapshot: &Self::Snapshot) -> bool {
@@ -92,6 +98,7 @@ impl<T> UndoLogs<T> for NoUndo {
     fn clear(&mut self) {}
 }
 
+/// A basic undo log.
 #[derive(Clone, Debug)]
 pub struct VecLog<T> {
     log: Vec<T>,
@@ -187,6 +194,7 @@ impl<T> std::ops::Index<usize> for VecLog<T> {
     }
 }
 
+/// A trait implemented for types which can be rolled back using actions of type `U`.
 pub trait Rollback<U> {
     fn reverse(&mut self, undo: U);
 }
@@ -200,7 +208,7 @@ where
     }
 }
 
-// Snapshots are tokens that should be created/consumed linearly.
+/// Snapshots are tokens that should be created/consumed linearly.
 pub struct Snapshot {
     // Length of the undo log at the time the snapshot was taken.
     undo_len: usize,
