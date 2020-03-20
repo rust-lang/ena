@@ -161,7 +161,6 @@ pub struct NoError {
 /// <http://en.wikipedia.org/wiki/Disjoint-set_data_structure>.
 #[derive(PartialEq, Clone, Debug)]
 pub struct VarValue<K: UnifyKey> {
-    // FIXME pub
     parent: K,       // if equal to self, this is a root
     value: K::Value, // value assigned (only relevant to root)
     rank: u32,       // max depth (only relevant to root)
