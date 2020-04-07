@@ -243,20 +243,18 @@ impl<K: UnifyKey> VarValue<K> {
         }
     }
 }
-impl<K, V, L> UnificationTable<InPlace<K, V, L>>
+impl<K> UnificationTableStorage<K>
 where
     K: UnifyKey,
-    V: sv::VecLike<Delegate<K>>,
 {
     /// Creates a `UnificationTable` using an external `undo_log`, allowing mutating methods to be
     /// called if `L` does not implement `UndoLogs`
-    pub fn with_log<'a, L2>(
+    pub fn with_log<'a, L>(
         &'a mut self,
-        undo_log: L2,
-    ) -> UnificationTable<InPlace<K, &'a mut V, L2>>
+        undo_log: L,
+    ) -> UnificationTable<InPlace<K, &'a mut UnificationStorage<K>, L>>
     where
-        L2: UndoLogs<sv::UndoLog<Delegate<K>>>,
-        &'a mut V: sv::VecLike<Delegate<K>>,
+        L: UndoLogs<sv::UndoLog<Delegate<K>>>,
     {
         UnificationTable {
             values: InPlace {
