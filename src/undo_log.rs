@@ -234,7 +234,7 @@ where
     T: Rollback<U>,
 {
     fn reverse(&mut self, undo: U) {
-        (**self).reverse(undo)
+        T::reverse(self, undo)
     }
 }
 
