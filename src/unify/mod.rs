@@ -180,7 +180,7 @@ pub struct VarValue<K: UnifyKey> {
 ///   - This implies that ordinary operations are quite a bit slower though.
 ///   - Requires the `persistent` feature be selected in your Cargo.toml file.
 #[derive(Clone, Debug, Default)]
-pub struct UnificationTable<S> {
+pub struct UnificationTable<S: UnificationStoreBase> {
     /// Indicates the current value of each key.
     values: S,
 }
@@ -248,6 +248,8 @@ where
     K: UnifyKey,
     V: sv::VecLike<Delegate<K>>,
 {
+    /// Creates a `UnificationTable` using an external `undo_log`, allowing mutating methods to be
+    /// called if `L` does not implement `UndoLogs`
     pub fn with_log<'a, L2>(
         &'a mut self,
         undo_log: L2,
@@ -269,7 +271,7 @@ where
 // other type parameter U, and we have no way to say
 // Option<U>:LatticeValue.
 
-impl<S: Default> UnificationTable<S> {
+impl<S: UnificationStoreBase + Default> UnificationTable<S> {
     pub fn new() -> Self {
         Self::default()
     }

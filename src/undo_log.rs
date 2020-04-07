@@ -11,14 +11,21 @@
 /// A trait which allows actions (`T`) to be pushed which which allows the action to be undone at a
 /// later time if needed
 pub trait UndoLogs<T> {
+    /// True if a snapshot has started, false otherwise
     fn in_snapshot(&self) -> bool {
         self.num_open_snapshots() > 0
     }
-    fn num_open_snapshots(&self) -> usize {
-        0
-    }
+
+    /// How many open snapshots this undo log currently has
+    fn num_open_snapshots(&self) -> usize;
+
+    /// Pushes a new "undo item" onto the undo log. This method is invoked when some action is taken
+    /// (e.g., a variable is unified). It records the info needed to reverse that action should an
+    /// enclosing snapshot be rolleod back.
     fn push(&mut self, undo: T);
+
     fn clear(&mut self);
+
     fn extend<I>(&mut self, undos: I)
     where
         Self: Sized,
@@ -78,24 +85,24 @@ where
 {
     type Snapshot = U::Snapshot;
     fn has_changes(&self, snapshot: &Self::Snapshot) -> bool {
-        (**self).has_changes(snapshot)
+        U::has_changes(self, snapshot)
     }
     fn actions_since_snapshot(&self, snapshot: &Self::Snapshot) -> &[T] {
-        (**self).actions_since_snapshot(snapshot)
+        U::actions_since_snapshot(self, snapshot)
     }
 
     fn start_snapshot(&mut self) -> Self::Snapshot {
-        (**self).start_snapshot()
+        U::start_snapshot(self)
     }
     fn rollback_to<R>(&mut self, values: impl FnOnce() -> R, snapshot: Self::Snapshot)
     where
         R: Rollback<T>,
     {
-        (**self).rollback_to(values, snapshot)
+        U::rollback_to(self, values, snapshot)
     }
 
     fn commit(&mut self, snapshot: Self::Snapshot) {
-        (**self).commit(snapshot)
+        U::commit(self, snapshot)
     }
 }
 
