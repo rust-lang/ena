@@ -24,8 +24,10 @@ pub trait UndoLogs<T> {
     /// enclosing snapshot be rolleod back.
     fn push(&mut self, undo: T);
 
+    /// Removes all items from the undo log.
     fn clear(&mut self);
 
+    /// Extends the undo log with many undos.
     fn extend<I>(&mut self, undos: I)
     where
         Self: Sized,
@@ -40,23 +42,23 @@ where
     U: UndoLogs<T>,
 {
     fn in_snapshot(&self) -> bool {
-        (**self).in_snapshot()
+        U::in_snapshot(self)
     }
     fn num_open_snapshots(&self) -> usize {
-        (**self).num_open_snapshots()
+        U::num_open_snapshots(self)
     }
     fn push(&mut self, undo: T) {
-        (**self).push(undo)
+        U::push(self, undo)
     }
     fn clear(&mut self) {
-        (**self).clear();
+        U::clear(self);
     }
     fn extend<I>(&mut self, undos: I)
     where
         Self: Sized,
         I: IntoIterator<Item = T>,
     {
-        (**self).extend(undos)
+        U::extend(self, undos)
     }
 }
 
