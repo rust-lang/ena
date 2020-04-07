@@ -164,7 +164,8 @@ impl<D: SnapshotVecDelegate, V: VecLike<D> + Default, L: Default> SnapshotVec<D,
 }
 
 impl<D: SnapshotVecDelegate, V: VecLike<D>, L> SnapshotVec<D, V, L> {
-    /// Creates a `SnapshotVec` using the `undo_log`, allowing mutating methods to be called
+    /// Creates a `SnapshotVec` using the `undo_log`, allowing mutating methods to be
+    /// called if `L` does not implement `UndoLogs`
     pub fn with_log<'a, L2>(&'a mut self, undo_log: L2) -> SnapshotVec<D, &'a mut V, L2>
     where
         L2: UndoLogs<UndoLog<D>>,
