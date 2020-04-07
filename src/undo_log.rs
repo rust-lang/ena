@@ -8,8 +8,11 @@
 //! Since the `*Storage` variants do not have an undo log `with_log` must be called with the
 //! unified log before any mutating actions.
 
-/// A trait which allows actions (`T`) to be pushed which which allows the action to be undone at a
-/// later time if needed
+/// A trait which allows undo actions (`T`) to be pushed which can be used to rollback actio at a
+/// later time if needed.
+///
+/// The undo actions themselves are opaque to `UndoLogs`, only specified `Rollback` implementations
+/// need to know what an action is and how to reverse it.
 pub trait UndoLogs<T> {
     /// True if a snapshot has started, false otherwise
     fn in_snapshot(&self) -> bool {
