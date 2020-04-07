@@ -62,22 +62,33 @@ where
     }
 }
 
-/// A trait which allows snapshots to be done at specific points. Each snapshot can then be used to
+/// A trait which extends `UndoLogs` to allow snapshots to be done at specific points. Each snapshot can then be used to
 /// rollback any changes to an underlying data structures if they were not desirable.
 ///
 /// Each snapshot must be consumed linearly with either `rollback_to` or `commit`.
 pub trait Snapshots<T>: UndoLogs<T> {
     type Snapshot;
+
+    /// Returns true if `self` has made any changes since snapshot started.
     fn has_changes(&self, snapshot: &Self::Snapshot) -> bool {
         !self.actions_since_snapshot(snapshot).is_empty()
     }
+
+    /// Returns the slice of actions that were taken since the snapshot began.
     fn actions_since_snapshot(&self, snapshot: &Self::Snapshot) -> &[T];
 
+    /// Starts a new snapshot. That snapshot must eventually either be committed via a call to
+    /// commit or rollback via rollback_to. Snapshots can be nested (i.e., you can start a snapshot
+    /// whilst another snapshot is in progress) but you must then commit or rollback the inner
+    /// snapshot before attempting to commit or rollback the outer snapshot.
     fn start_snapshot(&mut self) -> Self::Snapshot;
-    fn rollback_to<R>(&mut self, values: impl FnOnce() -> R, snapshot: Self::Snapshot)
+
+    /// Rollback (undo) the changes made to `storage` since the snapshot.
+    fn rollback_to<R>(&mut self, storage: impl FnOnce() -> R, snapshot: Self::Snapshot)
     where
         R: Rollback<T>;
 
+    /// Commit: keep the changes that have been made since the snapshot began
     fn commit(&mut self, snapshot: Self::Snapshot);
 }
 
@@ -96,11 +107,11 @@ where
     fn start_snapshot(&mut self) -> Self::Snapshot {
         U::start_snapshot(self)
     }
-    fn rollback_to<R>(&mut self, values: impl FnOnce() -> R, snapshot: Self::Snapshot)
+    fn rollback_to<R>(&mut self, storage: impl FnOnce() -> R, snapshot: Self::Snapshot)
     where
         R: Rollback<T>,
     {
-        U::rollback_to(self, values, snapshot)
+        U::rollback_to(self, storage, snapshot)
     }
 
     fn commit(&mut self, snapshot: Self::Snapshot) {
@@ -213,7 +224,7 @@ impl<T> std::ops::Index<usize> for VecLog<T> {
     }
 }
 
-/// A trait implemented for types which can be rolled back using actions of type `U`.
+/// A trait implemented for storage types (like `SnapshotVecStorage`) which can be rolled back using actions of type `U`.
 pub trait Rollback<U> {
     fn reverse(&mut self, undo: U);
 }
