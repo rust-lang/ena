@@ -20,4 +20,5 @@ extern crate log;
 extern crate dogged;
 
 pub mod snapshot_vec;
+pub mod undo_log;
 pub mod unify;

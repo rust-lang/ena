@@ -22,8 +22,11 @@
 use self::UndoLog::*;
 
 use std::fmt;
+use std::marker::PhantomData;
 use std::mem;
 use std::ops;
+
+use undo_log::{Rollback, Snapshots, UndoLogs, VecLog};
 
 #[derive(Debug)]
 pub enum UndoLog<D: SnapshotVecDelegate> {
@@ -37,33 +40,101 @@ pub enum UndoLog<D: SnapshotVecDelegate> {
     Other(D::Undo),
 }
 
-pub struct SnapshotVec<D: SnapshotVecDelegate> {
-    values: Vec<D::Value>,
-    undo_log: Vec<UndoLog<D>>,
-    num_open_snapshots: usize,
+impl<D: SnapshotVecDelegate> Rollback<UndoLog<D>> for SnapshotVecStorage<D> {
+    fn reverse(&mut self, undo: UndoLog<D>) {
+        self.values.reverse(undo)
+    }
+}
+impl<D: SnapshotVecDelegate> Rollback<UndoLog<D>> for Vec<D::Value> {
+    fn reverse(&mut self, undo: UndoLog<D>) {
+        match undo {
+            NewElem(i) => {
+                self.pop();
+                assert!(Vec::len(self) == i);
+            }
+
+            SetElem(i, v) => {
+                self[i] = v;
+            }
+
+            Other(u) => {
+                D::reverse(self, u);
+            }
+        }
+    }
 }
 
-impl<D> fmt::Debug for SnapshotVec<D>
-    where D: SnapshotVecDelegate,
-          D: fmt::Debug,
-          D::Undo: fmt::Debug,
-          D::Value: fmt::Debug
+pub trait VecLike<D>: AsRef<[D::Value]> + AsMut<[D::Value]> + Rollback<UndoLog<D>>
+where
+    D: SnapshotVecDelegate,
+{
+    fn push(&mut self, item: D::Value);
+    fn len(&self) -> usize;
+    fn reserve(&mut self, size: usize);
+}
+
+impl<D> VecLike<D> for Vec<D::Value>
+where
+    D: SnapshotVecDelegate,
+{
+    fn push(&mut self, item: D::Value) {
+        Vec::push(self, item)
+    }
+    fn len(&self) -> usize {
+        Vec::len(self)
+    }
+    fn reserve(&mut self, size: usize) {
+        Vec::reserve(self, size)
+    }
+}
+
+impl<D> VecLike<D> for &'_ mut Vec<D::Value>
+where
+    D: SnapshotVecDelegate,
+{
+    fn push(&mut self, item: D::Value) {
+        Vec::push(self, item)
+    }
+    fn len(&self) -> usize {
+        Vec::len(self)
+    }
+    fn reserve(&mut self, size: usize) {
+        Vec::reserve(self, size)
+    }
+}
+
+#[allow(type_alias_bounds)]
+pub type SnapshotVecStorage<D: SnapshotVecDelegate> =
+    SnapshotVec<D, Vec<<D as SnapshotVecDelegate>::Value>, ()>;
+
+pub struct SnapshotVec<
+    D: SnapshotVecDelegate,
+    V: VecLike<D> = Vec<<D as SnapshotVecDelegate>::Value>,
+    L = VecLog<UndoLog<D>>,
+> {
+    values: V,
+    undo_log: L,
+    _marker: PhantomData<D>,
+}
+
+impl<D, V, L> fmt::Debug for SnapshotVec<D, V, L>
+where
+    D: SnapshotVecDelegate,
+    V: VecLike<D> + fmt::Debug,
+    L: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("SnapshotVec")
             .field("values", &self.values)
             .field("undo_log", &self.undo_log)
-            .field("num_open_snapshots", &self.num_open_snapshots)
             .finish()
     }
 }
 
 // Snapshots are tokens that should be created/consumed linearly.
-pub struct Snapshot {
-    // Number of values at the time the snapshot was taken.
+pub struct Snapshot<S = ::undo_log::Snapshot> {
     pub(crate) value_count: usize,
-    // Length of the undo log at the time the snapshot was taken.
-    undo_len: usize,
+    snapshot: S,
 }
 
 pub trait SnapshotVecDelegate {
@@ -74,41 +145,83 @@ pub trait SnapshotVecDelegate {
 }
 
 // HACK(eddyb) manual impl avoids `Default` bound on `D`.
-impl<D: SnapshotVecDelegate> Default for SnapshotVec<D> {
+impl<D: SnapshotVecDelegate, V: VecLike<D> + Default, L: Default> Default for SnapshotVec<D, V, L> {
     fn default() -> Self {
         SnapshotVec {
-            values: Vec::new(),
-            undo_log: Vec::new(),
-            num_open_snapshots: 0,
+            values: V::default(),
+            undo_log: Default::default(),
+            _marker: PhantomData,
         }
     }
 }
 
-impl<D: SnapshotVecDelegate> SnapshotVec<D> {
+impl<D: SnapshotVecDelegate, V: VecLike<D> + Default, L: Default> SnapshotVec<D, V, L> {
+    /// Creates a new `SnapshotVec`. If `L` is set to `()` then most mutating functions will not
+    /// be accessible without calling `with_log` and supplying a compatibly `UndoLogs` instance.
     pub fn new() -> Self {
         Self::default()
     }
+}
 
-    pub fn with_capacity(c: usize) -> SnapshotVec<D> {
+impl<D: SnapshotVecDelegate> SnapshotVecStorage<D> {
+    /// Creates a `SnapshotVec` using the `undo_log`, allowing mutating methods to be called
+    pub fn with_log<'a, L>(
+        &'a mut self,
+        undo_log: L,
+    ) -> SnapshotVec<D, &'a mut Vec<<D as SnapshotVecDelegate>::Value>, L>
+    where
+        L: UndoLogs<UndoLog<D>>,
+    {
         SnapshotVec {
-            values: Vec::with_capacity(c),
-            undo_log: Vec::new(),
-            num_open_snapshots: 0,
+            values: &mut self.values,
+            undo_log,
+            _marker: PhantomData,
         }
     }
+}
 
+impl<D: SnapshotVecDelegate, L: Default> SnapshotVec<D, Vec<D::Value>, L> {
+    pub fn with_capacity(c: usize) -> Self {
+        SnapshotVec {
+            values: Vec::with_capacity(c),
+            undo_log: Default::default(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<V: VecLike<D>, D: SnapshotVecDelegate, U> SnapshotVec<D, V, U> {
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    pub fn get(&self, index: usize) -> &D::Value {
+        &self.values.as_ref()[index]
+    }
+
+    /// Returns a mutable pointer into the vec; whatever changes you make here cannot be undone
+    /// automatically, so you should be sure call `record()` with some sort of suitable undo
+    /// action.
+    pub fn get_mut(&mut self, index: usize) -> &mut D::Value {
+        &mut self.values.as_mut()[index]
+    }
+
+    /// Reserve space for new values, just like an ordinary vec.
+    pub fn reserve(&mut self, additional: usize) {
+        // This is not affected by snapshots or anything.
+        self.values.reserve(additional);
+    }
+}
+
+impl<V: VecLike<D>, D: SnapshotVecDelegate, L: UndoLogs<UndoLog<D>>> SnapshotVec<D, V, L> {
     fn in_snapshot(&self) -> bool {
-        self.num_open_snapshots > 0
+        self.undo_log.in_snapshot()
     }
 
     pub fn record(&mut self, action: D::Undo) {
         if self.in_snapshot() {
             self.undo_log.push(Other(action));
         }
-    }
-
-    pub fn len(&self) -> usize {
-        self.values.len()
     }
 
     pub fn push(&mut self, elem: D::Value) -> usize {
@@ -122,28 +235,11 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         len
     }
 
-    pub fn get(&self, index: usize) -> &D::Value {
-        &self.values[index]
-    }
-
-    /// Reserve space for new values, just like an ordinary vec.
-    pub fn reserve(&mut self, additional: usize) {
-        // This is not affected by snapshots or anything.
-        self.values.reserve(additional);
-    }
-
-    /// Returns a mutable pointer into the vec; whatever changes you make here cannot be undone
-    /// automatically, so you should be sure call `record()` with some sort of suitable undo
-    /// action.
-    pub fn get_mut(&mut self, index: usize) -> &mut D::Value {
-        &mut self.values[index]
-    }
-
     /// Updates the element at the given index. The old value will saved (and perhaps restored) if
     /// a snapshot is active.
     pub fn set(&mut self, index: usize, new_elem: D::Value) {
-        let old_elem = mem::replace(&mut self.values[index], new_elem);
-        if self.in_snapshot() {
+        let old_elem = mem::replace(&mut self.values.as_mut()[index], new_elem);
+        if self.undo_log.in_snapshot() {
             self.undo_log.push(SetElem(index, old_elem));
         }
     }
@@ -151,8 +247,8 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
     /// Updates all elements. Potentially more efficient -- but
     /// otherwise equivalent to -- invoking `set` for each element.
     pub fn set_all(&mut self, mut new_elems: impl FnMut(usize) -> D::Value) {
-        if !self.in_snapshot() {
-            for (index, slot) in self.values.iter_mut().enumerate() {
+        if !self.undo_log.in_snapshot() {
+            for (index, slot) in self.values.as_mut().iter_mut().enumerate() {
                 *slot = new_elems(index);
             }
         } else {
@@ -167,102 +263,72 @@ impl<D: SnapshotVecDelegate> SnapshotVec<D> {
         OP: FnOnce(&mut D::Value),
         D::Value: Clone,
     {
-        if self.in_snapshot() {
-            let old_elem = self.values[index].clone();
+        if self.undo_log.in_snapshot() {
+            let old_elem = self.values.as_mut()[index].clone();
             self.undo_log.push(SetElem(index, old_elem));
         }
-        op(&mut self.values[index]);
+        op(&mut self.values.as_mut()[index]);
     }
+}
 
-    pub fn start_snapshot(&mut self) -> Snapshot {
-        self.num_open_snapshots += 1;
+impl<D, V, L> SnapshotVec<D, V, L>
+where
+    D: SnapshotVecDelegate,
+    V: VecLike<D> + Rollback<UndoLog<D>>,
+    L: Snapshots<UndoLog<D>>,
+{
+    pub fn start_snapshot(&mut self) -> Snapshot<L::Snapshot> {
         Snapshot {
             value_count: self.values.len(),
-            undo_len: self.undo_log.len(),
+            snapshot: self.undo_log.start_snapshot(),
         }
     }
 
-    pub fn actions_since_snapshot(&self, snapshot: &Snapshot) -> &[UndoLog<D>] {
-        &self.undo_log[snapshot.undo_len..]
+    pub fn actions_since_snapshot(&self, snapshot: &Snapshot<L::Snapshot>) -> &[UndoLog<D>] {
+        self.undo_log.actions_since_snapshot(&snapshot.snapshot)
     }
 
-    fn assert_open_snapshot(&self, snapshot: &Snapshot) {
-        // Failures here may indicate a failure to follow a stack discipline.
-        assert!(self.undo_log.len() >= snapshot.undo_len);
-        assert!(self.num_open_snapshots > 0);
-    }
-
-    pub fn rollback_to(&mut self, snapshot: Snapshot) {
-        debug!("rollback_to({})", snapshot.undo_len);
-
-        self.assert_open_snapshot(&snapshot);
-
-        while self.undo_log.len() > snapshot.undo_len {
-            match self.undo_log.pop().unwrap() {
-                NewElem(i) => {
-                    self.values.pop();
-                    assert!(self.values.len() == i);
-                }
-
-                SetElem(i, v) => {
-                    self.values[i] = v;
-                }
-
-                Other(u) => {
-                    D::reverse(&mut self.values, u);
-                }
-            }
-        }
-
-        self.num_open_snapshots -= 1;
+    pub fn rollback_to(&mut self, snapshot: Snapshot<L::Snapshot>) {
+        let values = &mut self.values;
+        self.undo_log.rollback_to(|| values, snapshot.snapshot);
     }
 
     /// Commits all changes since the last snapshot. Of course, they
     /// can still be undone if there is a snapshot further out.
-    pub fn commit(&mut self, snapshot: Snapshot) {
-        debug!("commit({})", snapshot.undo_len);
-
-        self.assert_open_snapshot(&snapshot);
-
-        if self.num_open_snapshots == 1 {
-            // The root snapshot. It's safe to clear the undo log because
-            // there's no snapshot further out that we might need to roll back
-            // to.
-            assert!(snapshot.undo_len == 0);
-            self.undo_log.clear();
-        }
-
-        self.num_open_snapshots -= 1;
+    pub fn commit(&mut self, snapshot: Snapshot<L::Snapshot>) {
+        self.undo_log.commit(snapshot.snapshot);
     }
 }
 
-impl<D: SnapshotVecDelegate> ops::Deref for SnapshotVec<D> {
+impl<D: SnapshotVecDelegate, V: VecLike<D>, L> ops::Deref for SnapshotVec<D, V, L> {
     type Target = [D::Value];
     fn deref(&self) -> &[D::Value] {
-        &*self.values
+        self.values.as_ref()
     }
 }
 
-impl<D: SnapshotVecDelegate> ops::DerefMut for SnapshotVec<D> {
+impl<D: SnapshotVecDelegate, V: VecLike<D>, L> ops::DerefMut for SnapshotVec<D, V, L> {
     fn deref_mut(&mut self) -> &mut [D::Value] {
-        &mut *self.values
+        self.values.as_mut()
     }
 }
 
-impl<D: SnapshotVecDelegate> ops::Index<usize> for SnapshotVec<D> {
+impl<D: SnapshotVecDelegate, V: VecLike<D>, L> ops::Index<usize> for SnapshotVec<D, V, L> {
     type Output = D::Value;
     fn index(&self, index: usize) -> &D::Value {
         self.get(index)
     }
 }
 
-impl<D: SnapshotVecDelegate> ops::IndexMut<usize> for SnapshotVec<D> {
+impl<D: SnapshotVecDelegate, V: VecLike<D>, L> ops::IndexMut<usize> for SnapshotVec<D, V, L> {
     fn index_mut(&mut self, index: usize) -> &mut D::Value {
         self.get_mut(index)
     }
 }
 
-impl<D: SnapshotVecDelegate> Extend<D::Value> for SnapshotVec<D> {
+impl<D: SnapshotVecDelegate, V: VecLike<D> + Extend<D::Value>> Extend<D::Value>
+    for SnapshotVec<D, V>
+{
     fn extend<T>(&mut self, iterable: T)
     where
         T: IntoIterator<Item = D::Value>,
@@ -272,21 +338,22 @@ impl<D: SnapshotVecDelegate> Extend<D::Value> for SnapshotVec<D> {
         let final_len = self.values.len();
 
         if self.in_snapshot() {
-            self.undo_log.extend((initial_len..final_len).map(|len| NewElem(len)));
+            self.undo_log
+                .extend((initial_len..final_len).map(|len| NewElem(len)));
         }
     }
 }
 
-impl<D: SnapshotVecDelegate> Clone for SnapshotVec<D>
+impl<D: SnapshotVecDelegate, V, L> Clone for SnapshotVec<D, V, L>
 where
-    D::Value: Clone,
-    D::Undo: Clone,
+    V: VecLike<D> + Clone,
+    L: Clone,
 {
     fn clone(&self) -> Self {
         SnapshotVec {
             values: self.values.clone(),
             undo_log: self.undo_log.clone(),
-            num_open_snapshots: self.num_open_snapshots,
+            _marker: PhantomData,
         }
     }
 }

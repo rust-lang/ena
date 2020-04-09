@@ -31,16 +31,20 @@
 //! The best way to see how it is used is to read the `tests.rs` file;
 //! search for e.g. `UnitKey`.
 
-use std::marker;
 use std::fmt::Debug;
+use std::marker;
 use std::ops::Range;
 
+use snapshot_vec::{self as sv, UndoLog};
+use undo_log::{UndoLogs, VecLog};
+
 mod backing_vec;
-pub use self::backing_vec::{InPlace, UnificationStore};
+pub use self::backing_vec::{
+    Delegate, InPlace, UnificationStore, UnificationStoreBase, UnificationStoreMut,
+};
 
 #[cfg(feature = "persistent")]
 pub use self::backing_vec::Persistent;
-
 
 #[cfg(test)]
 mod tests;
@@ -156,10 +160,10 @@ pub struct NoError {
 /// time of the algorithm under control. For more information, see
 /// <http://en.wikipedia.org/wiki/Disjoint-set_data_structure>.
 #[derive(PartialEq, Clone, Debug)]
-pub struct VarValue<K: UnifyKey> { // FIXME pub
-    parent: K, // if equal to self, this is a root
+pub struct VarValue<K: UnifyKey> {
+    parent: K,       // if equal to self, this is a root
     value: K::Value, // value assigned (only relevant to root)
-    rank: u32, // max depth (only relevant to root)
+    rank: u32,       // max depth (only relevant to root)
 }
 
 /// Table of unification keys and their values. You must define a key type K
@@ -176,14 +180,21 @@ pub struct VarValue<K: UnifyKey> { // FIXME pub
 ///   - This implies that ordinary operations are quite a bit slower though.
 ///   - Requires the `persistent` feature be selected in your Cargo.toml file.
 #[derive(Clone, Debug, Default)]
-pub struct UnificationTable<S: UnificationStore> {
+pub struct UnificationTable<S: UnificationStoreBase> {
     /// Indicates the current value of each key.
     values: S,
 }
 
+pub type UnificationStorage<K> = Vec<VarValue<K>>;
+pub type UnificationTableStorage<K> = UnificationTable<InPlace<K, UnificationStorage<K>, ()>>;
+
 /// A unification table that uses an "in-place" vector.
 #[allow(type_alias_bounds)]
-pub type InPlaceUnificationTable<K: UnifyKey> = UnificationTable<InPlace<K>>;
+pub type InPlaceUnificationTable<
+    K: UnifyKey,
+    V: sv::VecLike<Delegate<K>> = Vec<VarValue<K>>,
+    L = VecLog<UndoLog<Delegate<K>>>,
+> = UnificationTable<InPlace<K, V, L>>;
 
 /// A unification table that uses a "persistent" vector.
 #[cfg(feature = "persistent")]
@@ -232,17 +243,39 @@ impl<K: UnifyKey> VarValue<K> {
         }
     }
 }
+impl<K> UnificationTableStorage<K>
+where
+    K: UnifyKey,
+{
+    /// Creates a `UnificationTable` using an external `undo_log`, allowing mutating methods to be
+    /// called if `L` does not implement `UndoLogs`
+    pub fn with_log<'a, L>(
+        &'a mut self,
+        undo_log: L,
+    ) -> UnificationTable<InPlace<K, &'a mut UnificationStorage<K>, L>>
+    where
+        L: UndoLogs<sv::UndoLog<Delegate<K>>>,
+    {
+        UnificationTable {
+            values: InPlace {
+                values: self.values.values.with_log(undo_log),
+            },
+        }
+    }
+}
 
 // We can't use V:LatticeValue, much as I would like to,
 // because frequently the pattern is that V=Option<U> for some
 // other type parameter U, and we have no way to say
 // Option<U>:LatticeValue.
 
-impl<S: UnificationStore> UnificationTable<S> {
+impl<S: UnificationStoreBase + Default> UnificationTable<S> {
     pub fn new() -> Self {
         Self::default()
     }
+}
 
+impl<S: UnificationStore> UnificationTable<S> {
     /// Starts a new snapshot. Each snapshot must be either
     /// rolled back or committed in a "LIFO" (stack) order.
     pub fn snapshot(&mut self) -> Snapshot<S> {
@@ -266,6 +299,22 @@ impl<S: UnificationStore> UnificationTable<S> {
         self.values.commit(snapshot.snapshot);
     }
 
+    /// Returns the keys of all variables created since the `snapshot`.
+    pub fn vars_since_snapshot(&self, snapshot: &Snapshot<S>) -> Range<S::Key> {
+        let range = self.values.values_since_snapshot(&snapshot.snapshot);
+        S::Key::from_index(range.start as u32)..S::Key::from_index(range.end as u32)
+    }
+}
+
+impl<S: UnificationStoreBase> UnificationTable<S> {
+    /// Returns the number of keys created so far.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+}
+
+impl<S: UnificationStoreMut> UnificationTable<S> {
+    /// Starts a new snapshot. Each snapshot must be either
     /// Creates a fresh key with the given value.
     pub fn new_key(&mut self, value: S::Value) -> S::Key {
         let len = self.values.len();
@@ -284,29 +333,12 @@ impl<S: UnificationStore> UnificationTable<S> {
     /// Clears all unifications that have been performed, resetting to
     /// the initial state. The values of each variable are given by
     /// the closure.
-    pub fn reset_unifications(
-        &mut self,
-        mut value: impl FnMut(S::Key) -> S::Value,
-    ) {
+    pub fn reset_unifications(&mut self, mut value: impl FnMut(S::Key) -> S::Value) {
         self.values.reset_unifications(|i| {
             let key = UnifyKey::from_index(i as u32);
             let value = value(key);
             VarValue::new_var(key, value)
         });
-    }
-
-    /// Returns the number of keys created so far.
-    pub fn len(&self) -> usize {
-        self.values.len()
-    }
-
-    /// Returns the keys of all variables created since the `snapshot`.
-    pub fn vars_since_snapshot(
-        &self,
-        snapshot: &Snapshot<S>,
-    ) -> Range<S::Key> {
-        let range = self.values.values_since_snapshot(&snapshot.snapshot);
-        S::Key::from_index(range.start as u32)..S::Key::from_index(range.end as u32)
     }
 
     /// Obtains the current value for a particular key.
@@ -370,13 +402,12 @@ impl<S: UnificationStore> UnificationTable<S> {
 
         let rank_a = self.value(key_a).rank;
         let rank_b = self.value(key_b).rank;
-        if let Some((new_root, redirected)) =
-            S::Key::order_roots(
-                key_a,
-                &self.value(key_a).value,
-                key_b,
-                &self.value(key_b).value,
-            ) {
+        if let Some((new_root, redirected)) = S::Key::order_roots(
+            key_a,
+            &self.value(key_a).value,
+            key_b,
+            &self.value(key_b).value,
+        ) {
             // compute the new rank for the new root that they chose;
             // this may not be the optimal choice.
             let new_rank = if new_root == key_a {
@@ -435,7 +466,7 @@ impl<S: UnificationStore> UnificationTable<S> {
 
 impl<S, K, V> UnificationTable<S>
 where
-    S: UnificationStore<Key = K, Value = V>,
+    S: UnificationStoreMut<Key = K, Value = V>,
     K: UnifyKey<Value = V>,
     V: UnifyValue,
 {
@@ -537,7 +568,6 @@ where
     }
 }
 
-
 ///////////////////////////////////////////////////////////////////////////
 
 impl UnifyValue for () {
@@ -554,14 +584,11 @@ impl<V: UnifyValue> UnifyValue for Option<V> {
     fn unify_values(a: &Option<V>, b: &Option<V>) -> Result<Self, V::Error> {
         match (a, b) {
             (&None, &None) => Ok(None),
-            (&Some(ref v), &None) |
-            (&None, &Some(ref v)) => Ok(Some(v.clone())),
-            (&Some(ref a), &Some(ref b)) => {
-                match V::unify_values(a, b) {
-                    Ok(v) => Ok(Some(v)),
-                    Err(err) => Err(err),
-                }
-            }
+            (&Some(ref v), &None) | (&None, &Some(ref v)) => Ok(Some(v.clone())),
+            (&Some(ref a), &Some(ref b)) => match V::unify_values(a, b) {
+                Ok(v) => Ok(Some(v)),
+                Err(err) => Err(err),
+            },
         }
     }
 }

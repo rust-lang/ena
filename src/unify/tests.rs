@@ -17,10 +17,10 @@ extern crate test;
 #[cfg(feature = "bench")]
 use self::test::Bencher;
 use std::cmp;
-use unify::{NoError, InPlace, InPlaceUnificationTable, UnifyKey, EqUnifyValue, UnifyValue};
-use unify::{UnificationStore, UnificationTable};
 #[cfg(feature = "persistent")]
 use unify::Persistent;
+use unify::{EqUnifyValue, InPlace, InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
+use unify::{UnificationStore, UnificationTable};
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 struct UnitKey(u32);
@@ -40,7 +40,9 @@ impl UnifyKey for UnitKey {
 
 macro_rules! all_modes {
     ($name:ident for $t:ty => $body:tt) => {
-        fn test_body<$name: UnificationStore<Key = $t, Value = <$t as UnifyKey>::Value>>() {
+        fn test_body<
+            $name: Clone + Default + UnificationStore<Key = $t, Value = <$t as UnifyKey>::Value>,
+        >() {
             $body
         }
 
@@ -48,7 +50,7 @@ macro_rules! all_modes {
 
         #[cfg(feature = "persistent")]
         test_body::<Persistent<$t>>();
-    }
+    };
 }
 
 #[test]
@@ -91,7 +93,9 @@ fn big_array() {
 }
 
 #[cfg(feature = "bench")]
-fn big_array_bench_generic<S: UnificationStore<Key=UnitKey, Value=()>>(b: &mut Bencher) {
+fn big_array_bench_generic<S: Default + UnificationStore<Key = UnitKey, Value = ()>>(
+    b: &mut Bencher,
+) {
     let mut ut: UnificationTable<S> = UnificationTable::new();
     let mut keys = Vec::new();
     const MAX: usize = 1 << 15;
@@ -126,7 +130,9 @@ fn big_array_bench_Persistent(b: &mut Bencher) {
 }
 
 #[cfg(feature = "bench")]
-fn big_array_bench_in_snapshot_generic<S: UnificationStore<Key=UnitKey, Value=()>>(b: &mut Bencher) {
+fn big_array_bench_in_snapshot_generic<S: Default + UnificationStore<Key = UnitKey, Value = ()>>(
+    b: &mut Bencher,
+) {
     let mut ut: UnificationTable<S> = UnificationTable::new();
     let mut keys = Vec::new();
     const MAX: usize = 1 << 15;
@@ -165,7 +171,11 @@ fn big_array_bench_in_snapshot_Persistent(b: &mut Bencher) {
 }
 
 #[cfg(feature = "bench")]
-fn big_array_bench_clone_generic<S: UnificationStore<Key=UnitKey, Value=()>>(b: &mut Bencher) {
+fn big_array_bench_clone_generic<
+    S: Default + Clone + UnificationStore<Key = UnitKey, Value = ()>,
+>(
+    b: &mut Bencher,
+) {
     let mut ut: UnificationTable<S> = UnificationTable::new();
     let mut keys = Vec::new();
     const MAX: usize = 1 << 15;
