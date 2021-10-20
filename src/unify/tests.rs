@@ -61,8 +61,10 @@ fn basic() {
             let k1 = ut.new_key(());
             let k2 = ut.new_key(());
             assert_eq!(ut.unioned(k1, k2), false);
+            assert_eq!(ut.read_unioned(k1, k2), false);
             ut.union(k1, k2);
             assert_eq!(ut.unioned(k1, k2), true);
+            assert_eq!(ut.read_unioned(k1, k2), true);
         }
     }
 }
@@ -87,6 +89,7 @@ fn big_array() {
 
             for i in 0..MAX {
                 assert!(ut.unioned(keys[0], keys[i]));
+                assert!(ut.read_unioned(keys[0], keys[i]));
             }
         }
     }
@@ -232,10 +235,12 @@ fn even_odd() {
 
             for i in 1..MAX {
                 assert!(!ut.unioned(keys[i - 1], keys[i]));
+                assert!(!ut.read_unioned(keys[i - 1], keys[i]));
             }
 
             for i in 2..MAX {
                 assert!(ut.unioned(keys[i - 2], keys[i]));
+                assert!(!ut.read_unioned(keys[i - 1], keys[i]));
             }
         }
     }
@@ -270,6 +275,7 @@ fn unify_same_int_twice() {
             assert!(ut.unify_var_value(k2, Some(22)).is_ok());
             assert!(ut.unify_var_var(k1, k2).is_ok());
             assert_eq!(ut.probe_value(k1), Some(22));
+            assert_eq!(ut.read_probe_value(k1), Some(22));
         }
     }
 }
@@ -284,6 +290,7 @@ fn unify_vars_then_int_indirect() {
             assert!(ut.unify_var_var(k1, k2).is_ok());
             assert!(ut.unify_var_value(k1, Some(22)).is_ok());
             assert_eq!(ut.probe_value(k2), Some(22));
+            assert_eq!(ut.read_probe_value(k1), Some(22));
         }
     }
 }
@@ -425,6 +432,7 @@ fn ordered_key() {
 
             ut.union(k0_1, k0_5); // new root rank 2, should not be k0_5 or k0_6
             assert!(vec![k0_1, k0_2, k0_3, k0_4].contains(&ut.find(k0_1)));
+            assert!(vec![k0_1, k0_2, k0_3, k0_4].contains(&ut.read_find(k0_1)));
         }
     }
 }
@@ -471,16 +479,22 @@ fn clone_table() {
             assert!(ut.unify_var_value(k2, Some(22)).is_ok());
             assert!(ut.unify_var_var(k1, k2).is_ok());
             assert_eq!(ut.probe_value(k3), None);
+            assert_eq!(ut.read_probe_value(k3), None);
 
             let mut ut1 = ut.clone();
             assert_eq!(ut1.probe_value(k1), Some(22));
+            assert_eq!(ut1.read_probe_value(k1), Some(22));
             assert_eq!(ut1.probe_value(k3), None);
+            assert_eq!(ut1.read_probe_value(k3), None);
 
             assert!(ut.unify_var_value(k3, Some(44)).is_ok());
 
             assert_eq!(ut1.probe_value(k1), Some(22));
+            assert_eq!(ut1.read_probe_value(k1), Some(22));
             assert_eq!(ut1.probe_value(k3), None);
+            assert_eq!(ut1.read_probe_value(k3), None);
             assert_eq!(ut.probe_value(k3), Some(44));
+            assert_eq!(ut.read_probe_value(k3), Some(44));
         }
     }
 }
