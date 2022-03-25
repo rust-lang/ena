@@ -24,13 +24,14 @@
 //! When you have keys with non-trivial values, you must also define
 //! how those values can be merged. As part of doing this, you can
 //! define the "error" type to return on error; if errors are not
-//! possible, use `NoError` (an uninstantiable struct). Using this
-//! type also unlocks various more ergonomic methods (e.g., `union()`
-//! in place of `unify_var_var()`).
+//! possible, use [`Infallible`](core::convert::Infallible)
+//! an uninstantiable enum). Using this type also unlocks various more
+//! ergonomic methods (e.g., `union()` in place of `unify_var_var()`).
 //!
 //! The best way to see how it is used is to read the `tests.rs` file;
 //! search for e.g. `UnitKey`.
 
+use std::convert::Infallible;
 use std::fmt::Debug;
 use std::marker;
 use std::ops::Range;
@@ -109,8 +110,8 @@ pub trait UnifyKey: Copy + Clone + Debug + PartialEq {
 /// equal.
 pub trait UnifyValue: Clone + Debug {
     /// Defines the type to return when merging of two values fails.
-    /// If merging is infallible, use the special struct `NoError`
-    /// found in this crate, which unlocks various more convenient
+    /// If merging is infallible, use the special struct [`Infallible`]
+    /// which unlocks various more convenient
     /// methods on the unification table.
     type Error;
 
@@ -142,13 +143,6 @@ impl<T: EqUnifyValue> UnifyValue for T {
             Err((value1.clone(), value2.clone()))
         }
     }
-}
-
-/// A struct which can never be instantiated. Used
-/// for the error type for infallible cases.
-#[derive(Debug)]
-pub struct NoError {
-    _dummy: (),
 }
 
 /// Value of a unification key. We implement Tarjan's union-find
@@ -471,24 +465,24 @@ where
     V: UnifyValue,
 {
     /// Unions two keys without the possibility of failure; only
-    /// applicable when unify values use `NoError` as their error
+    /// applicable when unify values use [`Infallible`] as their error
     /// type.
     pub fn union<K1, K2>(&mut self, a_id: K1, b_id: K2)
     where
         K1: Into<K>,
         K2: Into<K>,
-        V: UnifyValue<Error = NoError>,
+        V: UnifyValue<Error = Infallible>,
     {
         self.unify_var_var(a_id, b_id).unwrap();
     }
 
     /// Unions a key and a value without the possibility of failure;
-    /// only applicable when unify values use `NoError` as their error
+    /// only applicable when unify values use [`Infallible`] as their error
     /// type.
     pub fn union_value<K1>(&mut self, id: K1, value: V)
     where
         K1: Into<K>,
-        V: UnifyValue<Error = NoError>,
+        V: UnifyValue<Error = Infallible>,
     {
         self.unify_var_value(id, value).unwrap();
     }
@@ -571,9 +565,9 @@ where
 ///////////////////////////////////////////////////////////////////////////
 
 impl UnifyValue for () {
-    type Error = NoError;
+    type Error = Infallible;
 
-    fn unify_values(_: &(), _: &()) -> Result<(), NoError> {
+    fn unify_values(_: &(), _: &()) -> Result<(), Infallible> {
         Ok(())
     }
 }
