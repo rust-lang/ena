@@ -5,7 +5,7 @@ extern crate ena;
 use ena::{
     snapshot_vec as sv,
     undo_log::{Rollback, Snapshots, UndoLogs},
-    unify::{self as ut, EqUnifyValue, UnifyKey},
+    unify::{self as ut, EqUnifyValue, NoExtraTraversalData, UnifyKey},
 };
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -27,12 +27,12 @@ impl UnifyKey for IntKey {
 impl EqUnifyValue for IntKey {}
 
 enum UndoLog {
-    EqRelation(sv::UndoLog<ut::Delegate<IntKey>>),
+    EqRelation(sv::UndoLog<ut::Delegate<IntKey, NoExtraTraversalData>>),
     Values(sv::UndoLog<i32>),
 }
 
-impl From<sv::UndoLog<ut::Delegate<IntKey>>> for UndoLog {
-    fn from(l: sv::UndoLog<ut::Delegate<IntKey>>) -> Self {
+impl From<sv::UndoLog<ut::Delegate<IntKey, NoExtraTraversalData>>> for UndoLog {
+    fn from(l: sv::UndoLog<ut::Delegate<IntKey, NoExtraTraversalData>>) -> Self {
         UndoLog::EqRelation(l)
     }
 }
@@ -55,7 +55,6 @@ impl Rollback<UndoLog> for TypeVariableStorage {
 #[derive(Default)]
 struct TypeVariableStorage {
     values: sv::SnapshotVecStorage<i32>,
-
     eq_relations: ut::UnificationTableStorage<IntKey>,
 }
 

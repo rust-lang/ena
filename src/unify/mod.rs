@@ -160,10 +160,90 @@ pub struct NoError {
 /// time of the algorithm under control. For more information, see
 /// <http://en.wikipedia.org/wiki/Disjoint-set_data_structure>.
 #[derive(PartialEq, Clone, Debug)]
-pub struct VarValue<K: UnifyKey> {
+pub struct VarValue<K: UnifyKey, TD: ExtraTraversalData<K>> {
     parent: K,       // if equal to self, this is a root
     value: K::Value, // value assigned (only relevant to root)
     rank: u32,       // max depth (only relevant to root)
+    traversing_data: TD::Data,
+}
+
+// Debug and Clone on these are just here because derives will generate
+// bounds on these types andhaving these enable us to still not have to
+// write these impls manually.
+
+/// Use this as [`ExtraTraversalData`] if you don't need to traverse connected
+/// components directly on the [`UnificationTable`]
+#[derive(Debug, Clone)]
+pub struct NoExtraTraversalData;
+/// Use this as [`ExtraTraversalData`] if you need to traverse connected
+/// components directly on the [`UnificationTable`]
+///
+/// This makes the [`UnificationTable::unioned_keys`] function available
+#[derive(Debug, Clone)]
+pub struct ConnectedComponentTraversal;
+/// Choose an implementor of this trait to determine whether the
+/// [`UnificationTable`] will store the data necessary to do connected
+/// component traversal.
+///
+/// This trait is largely internal and is not meant to be implemented outside
+/// of this crate.
+///
+/// It provides necessary functions to change the behavior of
+/// the [`UnificationTable`] where it should differ between the two
+/// implementations.
+pub trait ExtraTraversalData<K: UnifyKey>: Sized + Clone + Debug {
+    type Data: Clone + Debug;
+    fn init_from_key(k: K) -> Self::Data;
+    fn redirect(old_root_value: &mut VarValue<K, Self>, sibling: K);
+    fn make_root(new_root_value: &mut VarValue<K, Self>, child: K);
+    fn child(var_value: &VarValue<K, Self>, self_key: K) -> Option<K>;
+}
+impl<K: UnifyKey> ExtraTraversalData<K> for NoExtraTraversalData {
+    type Data = ();
+    #[inline(always)]
+    fn init_from_key(_k: K) -> Self::Data {}
+    #[inline(always)]
+    fn redirect(_old_root_value: &mut VarValue<K, Self>, _sibling: K) {}
+    #[inline(always)]
+    fn make_root(_new_root_value: &mut VarValue<K, Self>, _child: K) {}
+    #[inline(always)]
+    fn child(_var_value: &VarValue<K, Self>, _self_key: K) -> Option<K> {
+        None
+    }
+}
+impl<K: UnifyKey> ExtraTraversalData<K> for ConnectedComponentTraversal {
+    type Data = CongruenceClosureTraversalData<K>;
+    #[inline(always)]
+    fn init_from_key(k: K) -> Self::Data {
+        CongruenceClosureTraversalData {
+            child: k,
+            sibling: k,
+        }
+    }
+    #[inline(always)]
+    fn redirect(old_root_value: &mut VarValue<K, Self>, sibling: K) {
+        // Since this used to be a root, we should have
+        // var_value.parent = var_value.sibling = the key of this value
+        debug_assert_eq!(
+            old_root_value.parent,
+            old_root_value.traversing_data.sibling
+        );
+        old_root_value.traversing_data.sibling = sibling;
+    }
+    #[inline(always)]
+    fn make_root(new_root_value: &mut VarValue<K, Self>, child: K) {
+        new_root_value.traversing_data.child = child;
+    }
+    #[inline(always)]
+    fn child(var_value: &VarValue<K, Self>, self_key: K) -> Option<K> {
+        var_value.child(self_key)
+    }
+}
+#[doc(hidden)]
+#[derive(PartialEq, Clone, Debug)]
+pub struct CongruenceClosureTraversalData<K> {
+    child: K,
+    sibling: K,
 }
 
 /// Table of unification keys and their values. You must define a key type K
@@ -185,21 +265,22 @@ pub struct UnificationTable<S: UnificationStoreBase> {
     values: S,
 }
 
-pub type UnificationStorage<K> = Vec<VarValue<K>>;
-pub type UnificationTableStorage<K> = UnificationTable<InPlace<K, UnificationStorage<K>, ()>>;
+pub type UnificationStorage<K, TD = NoExtraTraversalData> = Vec<VarValue<K, TD>>;
+pub type UnificationTableStorage<K, TD = NoExtraTraversalData> =
+    UnificationTable<InPlace<K, TD, UnificationStorage<K, TD>, ()>>;
 
 /// A unification table that uses an "in-place" vector.
-#[allow(type_alias_bounds)]
 pub type InPlaceUnificationTable<
-    K: UnifyKey,
-    V: sv::VecLike<Delegate<K>> = Vec<VarValue<K>>,
-    L = VecLog<UndoLog<Delegate<K>>>,
-> = UnificationTable<InPlace<K, V, L>>;
+    K,
+    TD = NoExtraTraversalData,
+    V = UnificationStorage<K, TD>,
+    L = VecLog<UndoLog<Delegate<K, TD>>>,
+> = UnificationTable<InPlace<K, TD, V, L>>;
 
 /// A unification table that uses a "persistent" vector.
 #[cfg(feature = "persistent")]
-#[allow(type_alias_bounds)]
-pub type PersistentUnificationTable<K: UnifyKey> = UnificationTable<Persistent<K>>;
+pub type PersistentUnificationTable<K, TD = NoExtraTraversalData> =
+    UnificationTable<Persistent<K, TD>>;
 
 /// At any time, users may snapshot a unification table.  The changes
 /// made during the snapshot may either be *committed* or *rolled back*.
@@ -209,24 +290,25 @@ pub struct Snapshot<S: UnificationStore> {
     snapshot: S::Snapshot,
 }
 
-impl<K: UnifyKey> VarValue<K> {
-    fn new_var(key: K, value: K::Value) -> VarValue<K> {
-        VarValue::new(key, value, 0)
-    }
-
-    fn new(parent: K, value: K::Value, rank: u32) -> VarValue<K> {
+impl<K: UnifyKey, TD: ExtraTraversalData<K>> VarValue<K, TD> {
+    fn new(key: K, value: K::Value) -> Self {
         VarValue {
-            parent: parent, // this is a root
+            parent: key, // this is a root
             value: value,
-            rank: rank,
+            rank: 0,
+            traversing_data: TD::init_from_key(key),
         }
     }
 
-    fn redirect(&mut self, to: K) {
+    #[inline(always)]
+    fn redirect(&mut self, to: K, sibling: K) {
+        TD::redirect(self, sibling);
         self.parent = to;
     }
 
-    fn root(&mut self, rank: u32, value: K::Value) {
+    #[inline(always)]
+    fn make_root(&mut self, rank: u32, child: K, value: K::Value) {
+        TD::make_root(self, child);
         self.rank = rank;
         self.value = value;
     }
@@ -243,18 +325,29 @@ impl<K: UnifyKey> VarValue<K> {
         }
     }
 }
-impl<K> UnificationTableStorage<K>
+impl<K: UnifyKey> VarValue<K, ConnectedComponentTraversal> {
+    fn child(&self, self_key: K) -> Option<K> {
+        self.if_not_self(self.traversing_data.child, self_key)
+    }
+
+    fn sibling(&self, self_key: K) -> Option<K> {
+        self.if_not_self(self.traversing_data.sibling, self_key)
+    }
+}
+
+impl<K, TD> UnificationTableStorage<K, TD>
 where
     K: UnifyKey,
+    TD: ExtraTraversalData<K>,
 {
     /// Creates a `UnificationTable` using an external `undo_log`, allowing mutating methods to be
     /// called if `L` does not implement `UndoLogs`
     pub fn with_log<'a, L>(
         &'a mut self,
         undo_log: L,
-    ) -> UnificationTable<InPlace<K, &'a mut UnificationStorage<K>, L>>
+    ) -> UnificationTable<InPlace<K, TD, &'a mut UnificationStorage<K, TD>, L>>
     where
-        L: UndoLogs<sv::UndoLog<Delegate<K>>>,
+        L: UndoLogs<sv::UndoLog<Delegate<K, TD>>>,
     {
         UnificationTable {
             values: InPlace {
@@ -319,7 +412,7 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
     pub fn new_key(&mut self, value: S::Value) -> S::Key {
         let len = self.values.len();
         let key: S::Key = UnifyKey::from_index(len as u32);
-        self.values.push(VarValue::new_var(key, value));
+        self.values.push(VarValue::new(key, value));
         debug!("{}: created new key: {:?}", S::tag(), key);
         key
     }
@@ -337,13 +430,13 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
         self.values.reset_unifications(|i| {
             let key = UnifyKey::from_index(i as u32);
             let value = value(key);
-            VarValue::new_var(key, value)
+            VarValue::new(key, value)
         });
     }
 
     /// Obtains the current value for a particular key.
     /// Not for end-users; they can use `probe_value`.
-    fn value(&self, key: S::Key) -> &VarValue<S::Key> {
+    fn value(&self, key: S::Key) -> &VarValue<S::Key, S::ExtraTraversalData> {
         &self.values[key.index() as usize]
     }
 
@@ -383,7 +476,7 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
 
     fn update_value<OP>(&mut self, key: S::Key, op: OP)
     where
-        OP: FnOnce(&mut VarValue<S::Key>),
+        OP: FnOnce(&mut VarValue<S::Key, S::ExtraTraversalData>),
     {
         self.values.update(key.index() as usize, op);
         debug!("Updated variable {:?} to {:?}", key, self.value(key));
@@ -452,12 +545,125 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
         new_root_key: S::Key,
         new_value: S::Value,
     ) {
+        let sibling = <S::ExtraTraversalData as ExtraTraversalData<S::Key>>::child(
+            self.value(new_root_key),
+            new_root_key,
+        )
+        .unwrap_or(old_root_key);
         self.update_value(old_root_key, |old_root_value| {
-            old_root_value.redirect(new_root_key);
+            old_root_value.redirect(new_root_key, sibling);
         });
         self.update_value(new_root_key, |new_root_value| {
-            new_root_value.root(new_rank, new_value);
+            new_root_value.make_root(new_rank, old_root_key, new_value);
         });
+    }
+}
+
+impl<S: UnificationStoreMut<ExtraTraversalData = ConnectedComponentTraversal>> UnificationTable<S> {
+    /// Returns an iterator over all keys unioned with `key`.
+    pub fn unioned_keys<K1>(&mut self, key: K1) -> UnionedKeys<S>
+    where
+        K1: Into<S::Key>,
+    {
+        let key = key.into();
+        let root_key = self.uninlined_get_root_key(key);
+        UnionedKeys {
+            table: self,
+            stack: vec![root_key],
+        }
+    }
+
+    /// Clears all unifications that were connected to `key`.
+    /// They will all become individual elements again.
+    ///
+    /// This leaves other connected components intact.
+    ///
+    /// The values of each variable are given by the closure.
+    pub fn reset_unifications_partial(
+        &mut self,
+        key: impl Into<S::Key>,
+        mut value: impl FnMut(S::Key) -> S::Value,
+    ) {
+        let key = key.into();
+        let unioned_keys: Vec<_> = self.unioned_keys(key).collect();
+        for key in unioned_keys {
+            self.update_value(key, |var_value| {
+                *var_value = VarValue::new(key, value(key));
+            });
+        }
+    }
+}
+
+/// Iterator over keys that have been unioned together.
+/// You can only obtain this from an [`UnificationTable`] that uses
+/// [`ConnectedComponentTraversal`]
+///
+/// Returned by the `unioned_keys` method.
+pub struct UnionedKeys<'a, S>
+where
+    S: UnificationStoreMut<ExtraTraversalData = ConnectedComponentTraversal> + 'a,
+    S::Key: 'a,
+    S::Value: 'a,
+{
+    table: &'a mut UnificationTable<S>,
+    stack: Vec<S::Key>,
+}
+
+impl<'a, S> UnionedKeys<'a, S>
+where
+    S: UnificationStoreMut<ExtraTraversalData = ConnectedComponentTraversal> + 'a,
+    S::Key: 'a,
+    S::Value: 'a,
+{
+    fn var_value(&self, key: S::Key) -> &VarValue<S::Key, S::ExtraTraversalData> {
+        self.table.value(key)
+    }
+}
+
+impl<'a, S: 'a> Iterator for UnionedKeys<'a, S>
+where
+    S: UnificationStoreMut<ExtraTraversalData = ConnectedComponentTraversal> + 'a,
+    S::Key: 'a,
+    S::Value: 'a,
+{
+    type Item = S::Key;
+
+    fn next(&mut self) -> Option<S::Key> {
+        let key = match self.stack.last() {
+            Some(k) => *k,
+            None => {
+                return None;
+            }
+        };
+
+        let vv = self.var_value(key);
+
+        match vv.child(key) {
+            Some(child_key) => {
+                self.stack.push(child_key);
+            }
+            None => {
+                // No child, push a sibling for the current node. If
+                // current node has no siblings, start popping
+                // ancestors until we find an aunt or uncle or
+                // something to push. Note that we have the invariant
+                // that for every node N that we reach by popping
+                // items off of the stack, we have already visited all
+                // children of N.
+                while let Some(ancestor_key) = self.stack.pop() {
+                    let ancestor_vv = self.var_value(ancestor_key);
+                    match ancestor_vv.sibling(ancestor_key) {
+                        Some(sibling) => {
+                            self.stack.push(sibling);
+                            break;
+                        }
+                        None => {}
+                    }
+                }
+            }
+        }
+
+        Some(key)
     }
 }
 
