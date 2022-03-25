@@ -17,9 +17,13 @@ extern crate test;
 #[cfg(feature = "bench")]
 use self::test::Bencher;
 use std::cmp;
+use std::collections::HashSet;
 #[cfg(feature = "persistent")]
 use unify::Persistent;
-use unify::{EqUnifyValue, InPlace, InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
+use unify::{
+    ConnectedComponentTraversal, EqUnifyValue, InPlace, InPlaceUnificationTable, NoError,
+    NoExtraTraversalData, UnifyKey, UnifyValue,
+};
 use unify::{UnificationStore, UnificationTable};
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -46,10 +50,13 @@ macro_rules! all_modes {
             $body
         }
 
-        test_body::<InPlace<$t>>();
+        test_body::<InPlace<$t, NoExtraTraversalData>>();
+        test_body::<InPlace<$t, ConnectedComponentTraversal>>();
 
         #[cfg(feature = "persistent")]
-        test_body::<Persistent<$t>>();
+        test_body::<Persistent<$t, NoExtraTraversalData>>();
+        #[cfg(feature = "persistent")]
+        test_body::<Persistent<$t, ConnectedComponentTraversal>>();
     };
 }
 
@@ -238,6 +245,31 @@ fn even_odd() {
                 assert!(ut.unioned(keys[i - 2], keys[i]));
             }
         }
+    }
+}
+
+#[test]
+fn even_odd_iter() {
+    let mut ut: InPlaceUnificationTable<UnitKey, ConnectedComponentTraversal> =
+        UnificationTable::new();
+    let mut keys = Vec::new();
+    const MAX: usize = 1 << 10;
+
+    for i in 0..MAX {
+        let key = ut.new_key(());
+        keys.push(key);
+
+        if i >= 2 {
+            ut.union(key, keys[i - 2]);
+        }
+    }
+
+    let even_keys: HashSet<UnitKey> = ut.unioned_keys(keys[22]).collect();
+
+    assert_eq!(even_keys.len(), MAX / 2);
+
+    for key in even_keys {
+        assert!((key.0 & 1) == 0);
     }
 }
 
