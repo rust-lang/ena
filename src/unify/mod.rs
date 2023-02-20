@@ -230,19 +230,8 @@ impl<K: UnifyKey> VarValue<K> {
         self.rank = rank;
         self.value = value;
     }
-
-    fn parent(&self, self_key: K) -> Option<K> {
-        self.if_not_self(self.parent, self_key)
-    }
-
-    fn if_not_self(&self, key: K, self_key: K) -> Option<K> {
-        if key == self_key {
-            None
-        } else {
-            Some(key)
-        }
-    }
 }
+
 impl<K> UnificationTableStorage<K>
 where
     K: UnifyKey,
@@ -358,13 +347,12 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
     /// callsites. `uninlined_get_root_key` is the never-inlined version.
     #[inline(always)]
     fn inlined_get_root_key(&mut self, vid: S::Key) -> S::Key {
-        let redirect = {
-            match self.value(vid).parent(vid) {
-                None => return vid,
-                Some(redirect) => redirect,
-            }
-        };
+        let v = self.value(vid);
+        if v.parent == vid {
+            return vid;
+        }
 
+        let redirect = v.parent;
         let root_key: S::Key = self.uninlined_get_root_key(redirect);
         if root_key != redirect {
             // Path compression
