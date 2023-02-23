@@ -69,13 +69,8 @@ pub trait UnifyKey: Copy + Clone + Debug + PartialEq {
 
     fn tag() -> &'static str;
 
-    /// If true, then `self` should be preferred as root to `other`.
-    /// Note that we assume a consistent partial ordering, so
-    /// returning true implies that `other.prefer_as_root_to(self)`
-    /// would return false.  If there is no ordering between two keys
-    /// (i.e., `a.prefer_as_root_to(b)` and `b.prefer_as_root_to(a)`
-    /// both return false) then the rank will be used to determine the
-    /// root in an optimal way.
+    /// You should return first the key that should be used as root,
+    /// then the other key (that will then point to the new root).
     ///
     /// NB. The only reason to implement this method is if you want to
     /// control what value is returned from `find()`. In general, it
