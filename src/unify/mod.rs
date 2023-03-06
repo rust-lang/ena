@@ -295,6 +295,12 @@ impl<S: UnificationStoreBase> UnificationTable<S> {
     pub fn len(&self) -> usize {
         self.values.len()
     }
+
+    /// Obtains the current value for a particular key.
+    /// Not for end-users; they can use `probe_value`.
+    fn value(&self, key: S::Key) -> &VarValue<S::Key> {
+        &self.values[key.index() as usize]
+    }
 }
 
 impl<S: UnificationStoreMut> UnificationTable<S> {
@@ -323,12 +329,6 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
             let value = value(key);
             VarValue::new_var(key, value)
         });
-    }
-
-    /// Obtains the current value for a particular key.
-    /// Not for end-users; they can use `probe_value`.
-    fn value(&self, key: S::Key) -> &VarValue<S::Key> {
-        &self.values[key.index() as usize]
     }
 
     /// Find the root node for `vid`. This uses the standard
@@ -446,6 +446,31 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
 
 /// ////////////////////////////////////////////////////////////////////////
 /// Public API
+
+impl<S, K, V> UnificationTable<S>
+where
+    S: UnificationStoreBase<Key = K, Value = V>,
+    K: UnifyKey<Value = V>,
+    V: UnifyValue,
+{
+    /// Attempts to return the current value for the given key. If the key has
+    /// been union'd, this may give the current value from the current root or `None`.
+    ///
+    /// This is useful for fast-paths that want to avoid pointer-chasing.
+    #[inline]
+    pub fn try_probe_value<'a, K1>(&'a self, id: K1) -> Option<&'a V>
+        where
+            K1: Into<K>,
+            K: 'a,
+    {
+        let id = id.into();
+        let v = self.value(id);
+        if v.parent == id {
+            return Some(&v.value);
+        }
+        None
+    }
+}
 
 impl<S, K, V> UnificationTable<S>
 where
