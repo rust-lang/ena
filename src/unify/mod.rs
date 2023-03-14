@@ -453,10 +453,7 @@ where
     K: UnifyKey<Value = V>,
     V: UnifyValue,
 {
-    /// Attempts to return the current value for the given key. If the key has
-    /// been union'd, this may give the current value from the current root or `None`.
-    ///
-    /// This is useful for fast-paths that want to avoid pointer-chasing.
+    /// Obtains current value for key without any pointer chasing; may return `None` if key has been union'd.
     #[inline]
     pub fn try_probe_value<'a, K1>(&'a self, id: K1) -> Option<&'a V>
         where
