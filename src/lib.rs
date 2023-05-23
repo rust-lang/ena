@@ -10,9 +10,12 @@
 
 //! An implementation of union-find. See the `unify` module for more
 //! details.
-
 #![cfg_attr(feature = "bench", feature(test))]
+#![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
+#[cfg(feature = "log")]
 #[macro_use]
 extern crate log;
 
