@@ -14,9 +14,12 @@
 
 #[cfg(feature = "bench")]
 extern crate test;
+
 #[cfg(feature = "bench")]
 use self::test::Bencher;
-use std::cmp;
+use core::cmp;
+use alloc::vec::Vec;
+use alloc::vec;
 #[cfg(feature = "persistent")]
 use unify::Persistent;
 use unify::{EqUnifyValue, InPlace, InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
@@ -385,6 +388,7 @@ impl UnifyKey for OrderedKey {
         b: OrderedKey,
         b_rank: &OrderedRank,
     ) -> Option<(OrderedKey, OrderedKey)> {
+        #[cfg(feature = "std")]
         println!("{:?} vs {:?}", a_rank, b_rank);
         if a_rank > b_rank {
             Some((a, b))

@@ -13,6 +13,8 @@
 #![cfg_attr(feature = "bench", feature(test))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "std")]
+extern crate core;
 extern crate alloc;
 
 #[cfg(feature = "log")]
