@@ -10,14 +10,25 @@
 
 //! An implementation of union-find. See the `unify` module for more
 //! details.
-
 #![cfg_attr(feature = "bench", feature(test))]
+#![cfg_attr(not(feature = "std"), no_std)]
 
-#[macro_use]
+#[cfg(feature = "std")]
+extern crate core;
+extern crate alloc;
+
+#[cfg(feature = "log")]
 extern crate log;
 
 #[cfg(feature = "persistent")]
 extern crate dogged;
+
+macro_rules! debug {
+  ($($tt:tt)*) => {
+    #[cfg(feature = "log")]
+    log::debug!($($tt)*);
+  };
+}
 
 pub mod snapshot_vec;
 pub mod undo_log;

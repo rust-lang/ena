@@ -21,10 +21,11 @@
 
 use self::UndoLog::*;
 
-use std::fmt;
-use std::marker::PhantomData;
-use std::mem;
-use std::ops;
+use core::fmt;
+use core::marker::PhantomData;
+use core::mem;
+use core::ops;
+use alloc::vec::Vec;
 
 use undo_log::{Rollback, Snapshots, UndoLogs, VecLog};
 

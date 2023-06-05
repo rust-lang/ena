@@ -31,9 +31,10 @@
 //! The best way to see how it is used is to read the `tests.rs` file;
 //! search for e.g. `UnitKey`.
 
-use std::fmt::Debug;
-use std::marker;
-use std::ops::Range;
+use core::fmt::Debug;
+use core::marker;
+use core::ops::Range;
+use alloc::vec::Vec;
 
 use snapshot_vec::{self as sv, UndoLog};
 use undo_log::{UndoLogs, VecLog};

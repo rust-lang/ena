@@ -1,8 +1,9 @@
 #[cfg(feature = "persistent")]
 use dogged::DVec;
 use snapshot_vec as sv;
-use std::marker::PhantomData;
-use std::ops::{self, Range};
+use core::marker::PhantomData;
+use core::ops::{self, Range};
+use alloc::vec::Vec;
 
 use undo_log::{Rollback, Snapshots, UndoLogs, VecLog};
 

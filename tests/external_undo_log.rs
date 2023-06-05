@@ -1,6 +1,13 @@
-#[macro_use]
+#[cfg(feature = "log")]
 extern crate log;
 extern crate ena;
+
+macro_rules! debug {
+  ($($tt:tt)*) => {
+    #[cfg(feature = "log")]
+    log::debug!($($tt)*);
+  };
+}
 
 use ena::{
     snapshot_vec as sv,

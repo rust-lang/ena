@@ -8,6 +8,9 @@
 //! Since the `*Storage` variants do not have an undo log `with_log` must be called with the
 //! unified log before any mutating actions.
 
+use core::ops;
+use alloc::vec::Vec;
+
 /// A trait which allows undo actions (`T`) to be pushed which can be used to rollback actio at a
 /// later time if needed.
 ///
@@ -220,7 +223,7 @@ impl<T> VecLog<T> {
     }
 }
 
-impl<T> std::ops::Index<usize> for VecLog<T> {
+impl<T> ops::Index<usize> for VecLog<T> {
     type Output = T;
     fn index(&self, key: usize) -> &T {
         &self.log[key]
