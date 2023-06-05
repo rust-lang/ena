@@ -1,7 +1,13 @@
 #[cfg(feature = "log")]
-#[macro_use]
 extern crate log;
 extern crate ena;
+
+macro_rules! debug {
+  ($($tt:tt)*) => {
+    #[cfg(feature = "log")]
+    log::debug!($($tt)*);
+  };
+}
 
 use ena::{
     snapshot_vec as sv,
@@ -152,7 +158,6 @@ impl Snapshots<UndoLog> for TypeVariableUndoLogs {
     where
         R: Rollback<UndoLog>,
     {
-        #[cfg(feature = "log")]
         debug!("rollback_to({})", snapshot.undo_len);
 
         if self.logs.len() > snapshot.undo_len {
@@ -174,7 +179,6 @@ impl Snapshots<UndoLog> for TypeVariableUndoLogs {
     }
 
     fn commit(&mut self, snapshot: Self::Snapshot) {
-        #[cfg(feature = "log")]
         debug!("commit({})", snapshot.undo_len);
 
         if self.num_open_snapshots == 1 {
