@@ -18,11 +18,17 @@ extern crate core;
 extern crate alloc;
 
 #[cfg(feature = "log")]
-#[macro_use]
 extern crate log;
 
 #[cfg(feature = "persistent")]
 extern crate dogged;
+
+macro_rules! debug {
+  ($($tt:tt)*) => {
+    #[cfg(feature = "log")]
+    log::debug!($($tt)*);
+  };
+}
 
 pub mod snapshot_vec;
 pub mod undo_log;

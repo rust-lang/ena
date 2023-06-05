@@ -273,7 +273,6 @@ impl<S: UnificationStore> UnificationTable<S> {
     /// Reverses all changes since the last snapshot. Also
     /// removes any keys that have been created since then.
     pub fn rollback_to(&mut self, snapshot: Snapshot<S>) {
-        #[cfg(feature = "log")]
         debug!("{}: rollback_to()", S::tag());
         self.values.rollback_to(snapshot.snapshot);
     }
@@ -281,7 +280,6 @@ impl<S: UnificationStore> UnificationTable<S> {
     /// Commits all changes since the last snapshot. Of course, they
     /// can still be undone if there is a snapshot further out.
     pub fn commit(&mut self, snapshot: Snapshot<S>) {
-        #[cfg(feature = "log")]
         debug!("{}: commit()", S::tag());
         self.values.commit(snapshot.snapshot);
     }
@@ -313,7 +311,6 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
         let len = self.values.len();
         let key: S::Key = UnifyKey::from_index(len as u32);
         self.values.push(VarValue::new_var(key, value));
-        #[cfg(feature = "log")]
         debug!("{}: created new key: {:?}", S::tag(), key);
         key
     }
@@ -373,7 +370,6 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
         OP: FnOnce(&mut VarValue<S::Key>),
     {
         self.values.update(key.index() as usize, op);
-        #[cfg(feature = "log")]
         debug!("Updated variable {:?} to {:?}", key, self.value(key));
     }
 
@@ -386,7 +382,6 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
     /// your key are non-trivial, you would probably prefer to call
     /// `unify_var_var` below.
     fn unify_roots(&mut self, key_a: S::Key, key_b: S::Key, new_value: S::Value) {
-        #[cfg(feature = "log")]
         debug!("unify(key_a={:?}, key_b={:?})", key_a, key_b);
 
         let rank_a = self.value(key_a).rank;

@@ -184,7 +184,6 @@ impl<T> Snapshots<T> for VecLog<T> {
     where
         R: Rollback<T>,
     {
-        #[cfg(feature = "log")]
         debug!("rollback_to({})", snapshot.undo_len);
 
         self.assert_open_snapshot(&snapshot);
@@ -200,7 +199,6 @@ impl<T> Snapshots<T> for VecLog<T> {
     }
 
     fn commit(&mut self, snapshot: Snapshot) {
-        #[cfg(feature = "log")]
         debug!("commit({})", snapshot.undo_len);
 
         self.assert_open_snapshot(&snapshot);
