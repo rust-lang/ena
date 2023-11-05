@@ -1,14 +1,14 @@
 //! Module which contains the snapshot/rollback functionality of the `ena` data structures.
 //!
 //! For most usecases this is just an internal implementation detail. However if many `ena`
-//! data structures are used snapshotted simultaneously it is possible to use
+//! data structures are snapshotted simultaneously it is possible to use
 //! `UnificationTableStorage`/`SnapshotVecStorage` instead and use a custom `UndoLogs<T>`
 //! type capable of recording the actions of all used data structures.
 //!
 //! Since the `*Storage` variants do not have an undo log `with_log` must be called with the
 //! unified log before any mutating actions.
 
-/// A trait which allows undo actions (`T`) to be pushed which can be used to rollback actio at a
+/// A trait which allows undo actions (`T`) to be pushed which can be used to rollback actions at a
 /// later time if needed.
 ///
 /// The undo actions themselves are opaque to `UndoLogs`, only specified `Rollback` implementations
@@ -24,7 +24,7 @@ pub trait UndoLogs<T> {
 
     /// Pushes a new "undo item" onto the undo log. This method is invoked when some action is taken
     /// (e.g., a variable is unified). It records the info needed to reverse that action should an
-    /// enclosing snapshot be rolleod back.
+    /// enclosing snapshot be rolled back.
     fn push(&mut self, undo: T);
 
     /// Removes all items from the undo log.
