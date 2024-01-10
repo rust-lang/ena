@@ -27,7 +27,7 @@ pub trait UnificationStoreBase: ops::Index<usize, Output = VarValue<Key<Self>>> 
 }
 
 pub trait UnificationStoreMut: UnificationStoreBase {
-    fn reset_unifications(&mut self, value: impl FnMut(u32) -> VarValue<Self::Key>);
+    fn reset_unifications(&mut self, value: impl FnMut(usize) -> VarValue<Self::Key>);
 
     fn push(&mut self, value: VarValue<Self::Key>);
 
@@ -90,8 +90,8 @@ where
     L: UndoLogs<sv::UndoLog<Delegate<K>>>,
 {
     #[inline]
-    fn reset_unifications(&mut self, mut value: impl FnMut(u32) -> VarValue<Self::Key>) {
-        self.values.set_all(|i| value(i as u32));
+    fn reset_unifications(&mut self, mut value: impl FnMut(usize) -> VarValue<Self::Key>) {
+        self.values.set_all(|i| value(i));
     }
 
     #[inline]
@@ -199,12 +199,12 @@ impl<K: UnifyKey> UnificationStoreBase for Persistent<K> {
 #[cfg(feature = "persistent")]
 impl<K: UnifyKey> UnificationStoreMut for Persistent<K> {
     #[inline]
-    fn reset_unifications(&mut self, mut value: impl FnMut(u32) -> VarValue<Self::Key>) {
+    fn reset_unifications(&mut self, mut value: impl FnMut(usize) -> VarValue<Self::Key>) {
         // Without extending dogged, there isn't obviously a more
         // efficient way to do this. But it's pretty dumb. Maybe
         // dogged needs a `map`.
         for i in 0..self.values.len() {
-            self.values[i] = value(i as u32);
+            self.values[i] = value(i);
         }
     }
 
