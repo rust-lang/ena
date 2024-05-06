@@ -58,7 +58,6 @@ where
     }
     fn extend<I>(&mut self, undos: I)
     where
-        Self: Sized,
         I: IntoIterator<Item = T>,
     {
         U::extend(self, undos)
