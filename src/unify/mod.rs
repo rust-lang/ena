@@ -570,6 +570,18 @@ where
         let id = self.inlined_get_root_key(id);
         self.value(id).value.clone()
     }
+
+    // An always-inlined version of `probe_value`, for hot callsites.
+    // And returns the root key of the given key along with the value.
+    #[inline(always)]
+    pub fn inlined_probe_key_value<K1>(&mut self, id: K1) -> (K, V)
+    where
+        K1: Into<K>,
+    {
+        let id = id.into();
+        let id = self.inlined_get_root_key(id);
+        (id, self.value(id).value.clone())
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////
