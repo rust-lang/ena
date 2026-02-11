@@ -35,8 +35,8 @@ use std::fmt::Debug;
 use std::marker;
 use std::ops::Range;
 
-use snapshot_vec::{self as sv, UndoLog};
-use undo_log::{UndoLogs, VecLog};
+use crate::snapshot_vec::{self as sv, UndoLog};
+use crate::undo_log::{UndoLogs, VecLog};
 
 mod backing_vec;
 pub use self::backing_vec::{
