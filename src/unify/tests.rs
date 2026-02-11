@@ -40,6 +40,8 @@ impl UnifyKey for UnitKey {
 
 macro_rules! all_modes {
     ($name:ident for $t:ty => $body:tt) => {
+        // The $name field is only needed by some callers
+        #[allow(clippy::extra_unused_type_parameters)]
         fn test_body<
             $name: Clone + Default + UnificationStore<Key = $t, Value = <$t as UnifyKey>::Value>,
         >() {
@@ -60,9 +62,9 @@ fn basic() {
             let mut ut: UnificationTable<S> = UnificationTable::new();
             let k1 = ut.new_key(());
             let k2 = ut.new_key(());
-            assert_eq!(ut.unioned(k1, k2), false);
+            assert!(!ut.unioned(k1, k2));
             ut.union(k1, k2);
-            assert_eq!(ut.unioned(k1, k2), true);
+            assert!(ut.unioned(k1, k2));
         }
     }
 }
@@ -386,12 +388,10 @@ impl UnifyKey for OrderedKey {
         b_rank: &OrderedRank,
     ) -> Option<(OrderedKey, OrderedKey)> {
         println!("{:?} vs {:?}", a_rank, b_rank);
-        if a_rank > b_rank {
-            Some((a, b))
-        } else if b_rank > a_rank {
-            Some((b, a))
-        } else {
-            None
+        match a_rank.cmp(b_rank) {
+            cmp::Ordering::Greater => Some((a, b)),
+            cmp::Ordering::Less => Some((b, a)),
+            cmp::Ordering::Equal => None,
         }
     }
 }
@@ -424,7 +424,7 @@ fn ordered_key() {
             ut.union(k0_5, k0_6); // rank of new root now 1
 
             ut.union(k0_1, k0_5); // new root rank 2, should not be k0_5 or k0_6
-            assert!(vec![k0_1, k0_2, k0_3, k0_4].contains(&ut.find(k0_1)));
+            assert!([k0_1, k0_2, k0_3, k0_4].contains(&ut.find(k0_1)));
         }
     }
 }
@@ -450,7 +450,7 @@ fn ordered_key_k1() {
 
             ut.union(k0_1, k1_5); // even though k1 has lower rank, it wins
             assert!(
-                vec![k1_5, k1_6].contains(&ut.find(k0_1)),
+                [k1_5, k1_6].contains(&ut.find(k0_1)),
                 "unexpected choice for root: {:?}",
                 ut.find(k0_1)
             );

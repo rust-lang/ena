@@ -40,7 +40,7 @@ pub trait UndoLogs<T> {
     }
 }
 
-impl<'a, T, U> UndoLogs<T> for &'a mut U
+impl<T, U> UndoLogs<T> for &mut U
 where
     U: UndoLogs<T>,
 {

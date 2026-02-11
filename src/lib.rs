@@ -12,6 +12,8 @@
 //! details.
 
 #![cfg_attr(feature = "bench", feature(test))]
+// This would add is_empty() functions to public traits
+#![allow(clippy::len_without_is_empty)]
 
 #[macro_use]
 extern crate log;

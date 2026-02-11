@@ -211,9 +211,9 @@ impl<K: UnifyKey> VarValue<K> {
 
     fn new(parent: K, value: K::Value, rank: u32) -> VarValue<K> {
         VarValue {
-            parent: parent, // this is a root
-            value: value,
-            rank: rank,
+            parent, // this is a root
+            value,
+            rank,
         }
     }
 
@@ -233,10 +233,10 @@ where
 {
     /// Creates a `UnificationTable` using an external `undo_log`, allowing mutating methods to be
     /// called if `L` does not implement `UndoLogs`
-    pub fn with_log<'a, L>(
-        &'a mut self,
+    pub fn with_log<L>(
+        &mut self,
         undo_log: L,
-    ) -> UnificationTable<InPlace<K, &'a mut UnificationStorage<K>, L>>
+    ) -> UnificationTable<InPlace<K, &mut UnificationStorage<K>, L>>
     where
         L: UndoLogs<sv::UndoLog<Delegate<K>>>,
     {
@@ -324,7 +324,7 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
     /// the closure.
     pub fn reset_unifications(&mut self, mut value: impl FnMut(S::Key) -> S::Value) {
         self.values.reset_unifications(|i| {
-            let key = UnifyKey::from_index(i as u32);
+            let key = UnifyKey::from_index(i);
             let value = value(key);
             VarValue::new_var(key, value)
         });
@@ -443,8 +443,7 @@ impl<S: UnificationStoreMut> UnificationTable<S> {
     }
 }
 
-/// ////////////////////////////////////////////////////////////////////////
-/// Public API
+// Public API
 
 impl<S, K, V> UnificationTable<S>
 where
@@ -535,7 +534,8 @@ where
 
         let combined = V::unify_values(&self.value(root_a).value, &self.value(root_b).value)?;
 
-        Ok(self.unify_roots(root_a, root_b, combined))
+        self.unify_roots(root_a, root_b, combined);
+        Ok(())
     }
 
     /// Sets the value of the key `a_id` to `b`, attempting to merge
@@ -599,9 +599,9 @@ impl<V: UnifyValue> UnifyValue for Option<V> {
 
     fn unify_values(a: &Option<V>, b: &Option<V>) -> Result<Self, V::Error> {
         match (a, b) {
-            (&None, &None) => Ok(None),
-            (&Some(ref v), &None) | (&None, &Some(ref v)) => Ok(Some(v.clone())),
-            (&Some(ref a), &Some(ref b)) => match V::unify_values(a, b) {
+            (None, None) => Ok(None),
+            (Some(v), None) | (None, Some(v)) => Ok(Some(v.clone())),
+            (Some(a), Some(b)) => match V::unify_values(a, b) {
                 Ok(v) => Ok(Some(v)),
                 Err(err) => Err(err),
             },
