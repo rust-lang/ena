@@ -9,14 +9,14 @@ use ena::{
 };
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
-struct IntKey(u32);
+struct IntKey(usize);
 
 impl UnifyKey for IntKey {
     type Value = Option<IntKey>;
-    fn index(&self) -> u32 {
+    fn index(&self) -> usize {
         self.0
     }
-    fn from_index(u: u32) -> IntKey {
+    fn from_index(u: usize) -> IntKey {
         IntKey(u)
     }
     fn tag() -> &'static str {
