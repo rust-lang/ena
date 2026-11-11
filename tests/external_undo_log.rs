@@ -80,7 +80,7 @@ struct TypeVariableTable<'a> {
 }
 
 impl TypeVariableTable<'_> {
-    fn new(&mut self, i: i32) -> IntKey {
+    fn new_key(&mut self, i: i32) -> IntKey {
         self.storage.values.with_log(&mut self.undo_log).push(i);
         self.storage
             .eq_relations
@@ -93,18 +93,10 @@ struct Snapshot {
     undo_len: usize,
 }
 
+#[derive(Default)]
 struct TypeVariableUndoLogs {
     logs: Vec<UndoLog>,
     num_open_snapshots: usize,
-}
-
-impl Default for TypeVariableUndoLogs {
-    fn default() -> Self {
-        Self {
-            logs: Default::default(),
-            num_open_snapshots: Default::default(),
-        }
-    }
 }
 
 impl<T> UndoLogs<T> for TypeVariableUndoLogs
@@ -193,8 +185,8 @@ fn external_undo_log() {
     let mut undo_log = TypeVariableUndoLogs::default();
 
     let snapshot = undo_log.start_snapshot();
-    storage.with_log(&mut undo_log).new(1);
-    storage.with_log(&mut undo_log).new(2);
+    storage.with_log(&mut undo_log).new_key(1);
+    storage.with_log(&mut undo_log).new_key(2);
     assert_eq!(storage.len(), 2);
 
     undo_log.rollback_to(|| &mut storage, snapshot);
