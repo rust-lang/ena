@@ -455,9 +455,9 @@ where
     /// Obtains current value for key without any pointer chasing; may return `None` if key has been union'd.
     #[inline]
     pub fn try_probe_value<'a, K1>(&'a self, id: K1) -> Option<&'a V>
-        where
-            K1: Into<K>,
-            K: 'a,
+    where
+        K1: Into<K>,
+        K: 'a,
     {
         let id = id.into();
         let v = self.value(id);
