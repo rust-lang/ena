@@ -16,11 +16,11 @@
 extern crate test;
 #[cfg(feature = "bench")]
 use self::test::Bencher;
+use crate::unify::{EqUnifyValue, InPlace, InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
+use crate::unify::{UnificationStore, UnificationTable};
 use std::cmp;
 #[cfg(feature = "persistent")]
 use unify::Persistent;
-use unify::{EqUnifyValue, InPlace, InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
-use unify::{UnificationStore, UnificationTable};
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 struct UnitKey(u32);

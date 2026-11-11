@@ -26,7 +26,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::ops;
 
-use undo_log::{Rollback, Snapshots, UndoLogs, VecLog};
+use crate::undo_log::{Rollback, Snapshots, UndoLogs, VecLog};
 
 #[derive(Debug)]
 pub enum UndoLog<D: SnapshotVecDelegate> {
@@ -132,7 +132,7 @@ where
 }
 
 // Snapshots are tokens that should be created/consumed linearly.
-pub struct Snapshot<S = ::undo_log::Snapshot> {
+pub struct Snapshot<S = crate::undo_log::Snapshot> {
     pub(crate) value_count: usize,
     snapshot: S,
 }
